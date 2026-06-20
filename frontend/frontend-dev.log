@@ -1,0 +1,39 @@
+
+> itech-canteen-frontend@2.0.0 dev
+> vite --host 127.0.0.1 --port 5173
+
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m249[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5173[22m/[39m
+[2m4:20:16 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Customer/SelfOrder.jsx, /src/index.css[22m
+[2m4:55:04 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Customer/SelfOrder.jsx, /src/index.css[22m
+[2m4:55:06 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Customer/SelfOrder.jsx[22m
+[2m5:24:44 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Admin/Coupons.jsx, /src/index.css[22m
+[2m5:35:45 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Navbar.jsx, /src/index.css[22m
+[2m5:35:51 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Navbar.jsx, /src/index.css[22m
+[2m5:43:36 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Login.jsx, /src/index.css[22m
+[2m5:43:40 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Login.jsx, /src/index.css[22m
+[2m5:43:59 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Login.jsx, /src/index.css[22m
+[2m5:44:01 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Login.jsx, /src/index.css[22m
+[2m5:52:56 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:53:20 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:53:27 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:53:31 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:53:33 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:53:39 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:54:02 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:54:07 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:54:10 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:54:13 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:54:15 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:54:20 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:54:52 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:57:44 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m5:57:46 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m6:00:28 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Admin/Coupons.jsx, /src/index.css[22m
+[2m6:02:44 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m6:02:55 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Admin/Users.jsx, /src/index.css[22m
+[2m6:03:41 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Admin/Coupons.jsx, /src/index.css[22m
+[2m6:03:41 pm[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/pages/Register.jsx[22m
+[2m6:03:41 pm[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Admin/Users.jsx, /src/index.css[22m
