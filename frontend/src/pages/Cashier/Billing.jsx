@@ -3,6 +3,12 @@ import api from '../../utils/api';
 import { Search, Plus, Minus, Table2, Send, CreditCard, CheckCircle, Clock3, MapPinned, TicketPercent } from 'lucide-react';
 import { groupOrderItems } from '../../utils/orderItems';
 
+const PAYMENT_METHODS = [
+  { id: 1, label: 'cash' },
+  { id: 2, label: 'card' },
+  { id: 3, label: 'upi' },
+];
+
 const Billing = () => {
   const [floors, setFloors] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -14,6 +20,7 @@ const Billing = () => {
   const [billSummary, setBillSummary] = useState(null);
   const [couponCode, setCouponCode] = useState('');
   const [redeemPoints, setRedeemPoints] = useState('');
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState(1);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -170,14 +177,23 @@ const Billing = () => {
     }
   };
 
-  const finishPayment = async (paymentMethod) => {
-    if (!activeOrder?.id) return;
+  const finishPayment = async (paymentMethodId) => {
+    if (!activeOrder?.id || activeOrder.status === 'paid') return;
     setBusy(true);
     setError('');
     try {
-      const res = await api.post(`/cashier/orders/${activeOrder.id}/payment?payment_method=${paymentMethod}`);
-      setActiveOrder(res.data);
-      setMessage(`Payment completed with ${paymentMethod}.`);
+      const amountDue = Number(billSummary?.balance_due ?? activeOrder?.total_amount ?? activeOrder?.total ?? subtotal);
+      if (amountDue <= 0) {
+        throw new Error('This bill has no pending balance.');
+      }
+      await api.post('/payments/process', {
+        order_id: activeOrder.id,
+        payment_method_id: paymentMethodId,
+        amount_received: amountDue,
+      });
+      setActiveOrder((current) => (current ? { ...current, status: 'paid' } : current));
+      setBillSummary(null);
+      setMessage(`Payment completed with ${PAYMENT_METHODS.find((method) => method.id === paymentMethodId)?.label || 'selected method'}.`);
       await loadData();
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not complete payment.');
@@ -424,16 +440,23 @@ const Billing = () => {
               Send to kitchen
             </button>
             <div className="grid grid-cols-3 gap-2">
-              {['cash', 'upi', 'card'].map((method) => (
+              {PAYMENT_METHODS.map((method) => (
                 <button
-                  key={method}
+                  key={method.id}
                   type="button"
-                  onClick={() => finishPayment(method)}
-                  disabled={busy || !activeOrder?.id}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-outline/10 bg-surface-container-high px-3 py-3 text-xs font-bold uppercase tracking-wider text-secondary transition-colors hover:text-primary disabled:opacity-50"
+                  onClick={() => {
+                    setSelectedPaymentMethodId(method.id);
+                    finishPayment(method.id);
+                  }}
+                  disabled={busy || !activeOrder?.id || activeOrder.status === 'paid'}
+                  className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${
+                    selectedPaymentMethodId === method.id
+                      ? 'border-primary bg-primary text-on-primary'
+                      : 'border-outline/10 bg-surface-container-high text-secondary hover:text-primary'
+                  }`}
                 >
                   <CreditCard size={14} />
-                  {method}
+                  {method.label}
                 </button>
               ))}
             </div>

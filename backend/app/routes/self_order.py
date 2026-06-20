@@ -1,9 +1,11 @@
 from decimal import Decimal
 from datetime import date, datetime
 import random
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import or_
 
 from app.db.models import (
     Category,
@@ -39,6 +41,10 @@ def _generate_order_number(db: Session) -> str:
 
 def _generate_session_pin() -> str:
     return f"{random.randint(0, 9999):04d}"
+
+
+def _normalize_phone(phone: str | None) -> str:
+    return re.sub(r"\D+", "", phone or "").strip()
 
 
 def _get_table(db: Session, table_id: int) -> TableMaster:
@@ -134,7 +140,7 @@ def _all_order_items_done(order: Order) -> bool:
     items = list(order.items or [])
     if not items:
         return False
-    return all(item.kitchen_status == "done" for item in items)
+    return all(item.kitchen_status == "completed" for item in items)
 
 
 def _recalculate_order(order: Order) -> None:
@@ -146,22 +152,67 @@ def _recalculate_order(order: Order) -> None:
 
 
 def _get_or_create_customer(db: Session, payload: dict) -> Customer:
-    mobile_number = payload.get("mobile_number") or payload.get("phone_no")
-    name = (payload.get("name") or "Guest").strip()
+    mobile_number = _normalize_phone(payload.get("mobile_number") or payload.get("phone_no"))
+    name = (payload.get("name") or "").strip()
+    email = (payload.get("email") or "").strip() or None
     if not mobile_number:
         raise HTTPException(status_code=400, detail="Phone number is required")
 
-    customer = db.query(Customer).filter(Customer.mobile_number == mobile_number).first()
+    customer = (
+        db.query(Customer)
+        .filter(
+            or_(
+                Customer.mobile_number == mobile_number,
+                Customer.mobile_number.like(f"%{mobile_number}%"),
+            ),
+        )
+        .first()
+    )
     if customer:
-        customer.name = name or customer.name
-        customer.email = payload.get("email") or customer.email
+        if name:
+            customer.name = name
+        if email:
+            customer.email = email
         customer.is_guest = False
         return customer
 
-    customer = Customer(name=name, mobile_number=mobile_number, email=payload.get("email") or None, is_guest=False)
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required for a new customer")
+
+    customer = Customer(name=name, mobile_number=mobile_number, email=email, is_guest=False)
     db.add(customer)
     db.flush()
     return customer
+
+
+@router.get("/customers/resolve")
+def resolve_customer(phone_number: str, db: Session = Depends(get_db)):
+    mobile_number = _normalize_phone(phone_number)
+    if not mobile_number:
+        raise HTTPException(status_code=400, detail="Phone number is required")
+
+    customer = (
+        db.query(Customer)
+        .filter(
+            or_(
+                Customer.mobile_number == mobile_number,
+                Customer.mobile_number.like(f"%{mobile_number}%"),
+            ),
+        )
+        .first()
+    )
+    if not customer:
+        return {"exists": False}
+
+    return {
+        "exists": True,
+        "customer": {
+            "id": customer.id,
+            "name": customer.name,
+            "email": customer.email,
+            "mobile_number": customer.mobile_number,
+        },
+    }
 
 
 def _get_or_create_order(db: Session, table: TableMaster, session: TableSession, customer_id: int | None = None) -> Order:
@@ -246,7 +297,7 @@ def _sync_order_items(db: Session, order: Order, requested_items: list[dict]) ->
 
         if desired_quantity > current_quantity:
             increase = desired_quantity - current_quantity
-            pending_line = next((line for line in lines if line.kitchen_status == "pending"), None)
+            pending_line = next((line for line in lines if line.kitchen_status == "to_cook"), None)
             if pending_line:
                 pending_line.quantity += increase
                 pending_line.line_total = pending_line.unit_price * pending_line.quantity
@@ -259,7 +310,7 @@ def _sync_order_items(db: Session, order: Order, requested_items: list[dict]) ->
                         unit_price=product.price,
                         line_discount=Decimal("0.00"),
                         line_total=product.price * increase,
-                        kitchen_status="pending",
+                        kitchen_status="to_cook",
                     )
                 )
         elif desired_quantity < current_quantity:
@@ -462,7 +513,7 @@ async def add_order_items(order_id: int, payload: dict, db: Session = Depends(ge
             (
                 order_item
                 for order_item in order.items
-                if order_item.product_id == product.id and order_item.kitchen_status == "pending"
+                if order_item.product_id == product.id and order_item.kitchen_status == "to_cook"
             ),
             None,
         )
@@ -478,7 +529,7 @@ async def add_order_items(order_id: int, payload: dict, db: Session = Depends(ge
                     unit_price=product.price,
                     line_discount=Decimal("0.00"),
                     line_total=product.price * quantity,
-                    kitchen_status="pending",
+                    kitchen_status="to_cook",
                 )
             )
 

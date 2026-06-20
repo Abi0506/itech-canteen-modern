@@ -1,13 +1,13 @@
 const ROLE_HOME_PATHS = {
   superadmin: '/admin/dashboard',
   admin: '/admin/dashboard',
-  inventory_manager: '/admin/items',
+  inventory_manager: '/inventory/dashboard',
   cashier: '/cashier/billing',
-  chef: '/kitchen',
-  customer: '/dashboard',
-  user: '/dashboard',
-  dept: '/dashboard',
-  external: '/dashboard',
+  chef: '/kds',
+  customer: '/self-order',
+  user: '/self-order',
+  dept: '/self-order',
+  external: '/self-order',
 };
 
 const ROLE_LABELS = {

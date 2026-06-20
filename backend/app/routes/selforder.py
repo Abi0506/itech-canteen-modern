@@ -209,7 +209,7 @@ async def create_self_order(qr_token: str, payload: Dict[str, Any], db: Session 
             quantity=Decimal(str(item["quantity"])),
             unit_price=prod.price,
             line_total=line_total,
-            kitchen_status="pending",
+            kitchen_status="to_cook",
             notes=item.get("notes")
         )
         db.add(order_item)

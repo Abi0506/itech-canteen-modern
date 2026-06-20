@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { getLandingPath } from '../utils/roleRouting';
 
 const Login = () => {
   const { login } = useAuth();
@@ -18,17 +19,7 @@ const Login = () => {
     setLoading(true);
     try {
       const role = await login(email, password);
-      if (role === 'superadmin') {
-        navigate('/admin/dashboard');
-      } else if (role === 'cashier') {
-        navigate('/cashier/tables');
-      } else if (role === 'inventory_manager') {
-        navigate('/inventory/dashboard');
-      } else if (role === 'chef') {
-        navigate('/kds');
-      } else {
-        navigate('/login');
-      }
+      navigate(getLandingPath(role, '/login'));
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed. Please verify credentials.');
     } finally {
