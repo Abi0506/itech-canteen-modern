@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from typing import Optional
 
@@ -38,7 +39,7 @@ class Settings(BaseSettings):
     PRINTER_WINDOWS_SHARE: Optional[str] = None
 
     class Config:
-        env_file = ".env"
+        env_file = str(Path(__file__).resolve().parents[3] / ".env")
         env_file_encoding = "utf-8"
         case_sensitive = True
 

@@ -42,6 +42,11 @@ class CustomerSignup(BaseModel):
     mobile_number: str
     email: Optional[EmailStr] = None
 
+class CustomerResolve(BaseModel):
+    name: Optional[str] = None
+    mobile_number: str
+    email: Optional[EmailStr] = None
+
 class CustomerResponse(BaseModel):
     id: int
     name: str

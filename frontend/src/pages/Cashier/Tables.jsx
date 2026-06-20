@@ -27,7 +27,7 @@ const Tables = () => {
     if (table.current_status === 'available') {
       navigate(`/cashier/order/${table.id}`);
     } else {
-      navigate(`/cashier/order/${table.id}?order_id=${table.current_order_id}`);
+      navigate(`/cashier/order/${table.id}`);
     }
   };
 

@@ -1,20 +1,415 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, or_
 from decimal import Decimal
 from datetime import datetime, date
+import razorpay
 import random
+import re
 from typing import List, Optional, Dict, Any
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.db.models import User, TableMaster, Order, OrderItem, Product, InventoryItem, StockMovement, Customer, PosSession, Payment, PaymentMethod
-from app.models.schemas import OrderCreate, OrderResponse, CustomerSignup, CustomerResponse, OrderItemCreate
+from app.models.schemas import OrderCreate, OrderResponse, CustomerSignup, CustomerResolve, CustomerResponse, OrderItemCreate
 from app.routes.auth import require_role
 from app.routes.websockets import manager
 
 router = APIRouter(prefix="/cashier", tags=["cashier"])
 
 cashier_dependency = Depends(require_role(["cashier", "superadmin"]))
+ACTIVE_TABLE_ORDER_STATUSES = ("draft", "sent_to_kitchen")
+
+
+def _normalize_phone(phone: str) -> str:
+    return re.sub(r"\D+", "", phone or "").strip()
+
+
+def _is_valid_phone(phone: str) -> bool:
+    cleaned = _normalize_phone(phone)
+    return 10 <= len(cleaned) <= 15
+
+
+def _generate_customer_name(phone: str) -> str:
+    suffix = phone[-4:] if len(phone) >= 4 else phone
+    return f"Customer {suffix}" if suffix else "Cashier Customer"
+
+
+def _upsert_customer(db: Session, *, name: Optional[str], mobile_number: str, email: Optional[str] = None) -> Customer:
+    phone = _normalize_phone(mobile_number)
+    if not _is_valid_phone(phone):
+        raise HTTPException(status_code=400, detail="Please enter a valid phone number (10-15 digits).")
+
+    existing = (
+        db.query(Customer)
+        .filter(
+            or_(
+                Customer.mobile_number == phone,
+                Customer.mobile_number.like(f"%{phone}%"),
+            )
+        )
+        .first()
+    )
+    if existing:
+        updated = False
+        cleaned_name = name.strip() if name else None
+        if cleaned_name and existing.name != cleaned_name and existing.is_guest:
+            existing.name = cleaned_name
+            updated = True
+        if email is not None and existing.email != email:
+            existing.email = email
+            updated = True
+        if updated:
+            db.commit()
+            db.refresh(existing)
+        return existing
+
+    cleaned_name = name.strip() if name and name.strip() else _generate_customer_name(phone)
+
+    new_customer = Customer(
+        name=cleaned_name,
+        mobile_number=phone,
+        email=email,
+        is_guest=False,
+    )
+    db.add(new_customer)
+    db.commit()
+    db.refresh(new_customer)
+    return new_customer
+
+
+def _require_customer_id(customer_id: Optional[int], *, context: str) -> int:
+    if customer_id is None:
+        raise HTTPException(status_code=400, detail=f"Customer mobile number is required {context}.")
+    return int(customer_id)
+
+
+def _get_active_table_orders(db: Session, table_id: int) -> list[Order]:
+    return (
+        db.query(Order)
+        .filter(Order.table_id == table_id, Order.status.in_(ACTIVE_TABLE_ORDER_STATUSES))
+        .order_by(Order.created_at.asc(), Order.id.asc())
+        .all()
+    )
+
+
+def _get_payment_method_by_type(db: Session, method_type: str) -> PaymentMethod:
+    method = db.query(PaymentMethod).filter(PaymentMethod.type == method_type).first()
+    if not method or not method.is_enabled:
+        raise HTTPException(status_code=400, detail="Invalid/disabled payment method")
+    return method
+
+
+def _get_razorpay_client() -> razorpay.Client:
+    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+        raise HTTPException(
+            status_code=503,
+            detail="Razorpay sandbox is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.",
+        )
+    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+
+def _get_or_create_walk_in_customer_id(db: Session) -> int:
+    guest = (
+        db.query(Customer)
+        .filter(Customer.is_guest == True)  # noqa: E712
+        .order_by(Customer.id.asc())
+        .first()
+    )
+    if guest:
+        return guest.id
+
+    guest = Customer(
+        name="Walk-in Customer",
+        mobile_number="0000000000",
+        email=None,
+        password_hash=None,
+        is_guest=True,
+    )
+    db.add(guest)
+    db.flush()
+    return guest.id
+
+
+def _serialize_order_item(item: OrderItem) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "order_id": item.order_id,
+        "product_id": item.product_id,
+        "product_name": item.product.name if item.product else None,
+        "quantity": float(item.quantity),
+        "unit_price": float(item.unit_price),
+        "line_discount": float(item.line_discount),
+        "line_total": float(item.line_total),
+        "kitchen_status": item.kitchen_status,
+        "notes": item.notes,
+        "claimed_by": item.claimed_by,
+        "claimed_at": item.claimed_at,
+        "completed_at": item.completed_at,
+    }
+
+
+def _serialize_order(order: Order, db: Session) -> dict[str, Any]:
+    customer = None
+    if order.customer_id:
+        customer_row = db.query(Customer).filter(Customer.id == order.customer_id).first()
+        if customer_row:
+            customer = {
+                "id": customer_row.id,
+                "name": customer_row.name,
+                "mobile_number": customer_row.mobile_number,
+                "email": customer_row.email,
+            }
+
+    return {
+        "id": order.id,
+        "order_number": order.order_number,
+        "source": order.source,
+        "table_id": order.table_id,
+        "customer_id": order.customer_id,
+        "customer": customer,
+        "status": order.status,
+        "subtotal": float(order.subtotal),
+        "tax_total": float(order.tax_total),
+        "discount_total": float(order.discount_total),
+        "total": float(order.total),
+        "notes": order.notes,
+        "created_at": order.created_at,
+        "updated_at": order.updated_at,
+        "items": [_serialize_order_item(item) for item in order.items],
+    }
+
+
+def _recalculate_order_totals(order: Order) -> None:
+    subtotal = sum((Decimal(str(item.line_total)) for item in order.items), Decimal("0.00"))
+    tax_total = subtotal * Decimal("0.05")
+    order.subtotal = subtotal
+    order.tax_total = tax_total
+    order.total = subtotal + tax_total - (order.discount_total or Decimal("0.00"))
+
+
+def _append_items_to_order(db: Session, order: Order, items_in: List[OrderItemCreate], current_user: User) -> None:
+    for item in items_in:
+        prod = db.query(Product).filter(Product.id == item.product_id).first()
+        if not prod or not prod.is_active:
+            raise HTTPException(status_code=400, detail=f"Product {item.product_id} not available")
+
+        quantity = Decimal(str(item.quantity))
+        line_total = prod.price * quantity
+
+        inv = db.query(InventoryItem).filter(InventoryItem.product_id == item.product_id).first()
+        if inv:
+            if inv.current_stock < quantity:
+                raise HTTPException(status_code=400, detail=f"Insufficient stock for product {item.product_id}.")
+            inv.current_stock -= quantity
+            db.add(
+                StockMovement(
+                    inventory_item_id=inv.id,
+                    movement_type="sale_out",
+                    quantity=quantity,
+                    reference_order_id=order.id,
+                    performed_by=current_user.id,
+                    note=f"Sale order {order.order_number}",
+                )
+            )
+
+        db.add(
+            OrderItem(
+                order_id=order.id,
+                product_id=item.product_id,
+                quantity=quantity,
+                unit_price=prod.price,
+                line_discount=Decimal("0.00"),
+                line_total=line_total,
+                kitchen_status="to_cook",
+                notes=item.notes,
+            )
+        )
+
+    db.flush()
+    db.refresh(order)
+    _recalculate_order_totals(order)
+
+
+def _send_order_to_kitchen(order: Order, db: Session, current_user: User) -> None:
+    if order.status != "draft":
+        raise HTTPException(status_code=400, detail="Only draft orders can be sent to the kitchen.")
+
+    order.status = "sent_to_kitchen"
+
+
+def _settle_table_orders(
+    db: Session,
+    *,
+    table_id: int,
+    payment_method_id: int,
+    amount_received: Optional[Decimal],
+    reference_code: Optional[str],
+    current_user: User,
+) -> dict[str, Any]:
+    orders = _get_active_table_orders(db, table_id)
+    if not orders:
+        raise HTTPException(status_code=404, detail="No active draft orders found for this table.")
+
+    method = db.query(PaymentMethod).filter(PaymentMethod.id == payment_method_id).first()
+    if not method or not method.is_enabled:
+        raise HTTPException(status_code=400, detail="Invalid/disabled payment method")
+
+    for order in orders:
+        _send_order_to_kitchen(order, db, current_user)
+
+    table_total = sum((Decimal(str(order.total)) for order in orders), Decimal("0.00"))
+    received = Decimal(str(amount_received)) if amount_received is not None else table_total
+    if method.type == "cash" and received < table_total:
+        raise HTTPException(status_code=400, detail="Received amount is less than table total")
+
+    change_due = received - table_total if received > table_total else Decimal("0.00")
+    remaining_received = received
+
+    for index, order in enumerate(orders, start=1):
+        order_received = min(Decimal(str(order.total)), remaining_received)
+        if index == len(orders) and received > table_total:
+            order_received = Decimal(str(order.total)) + change_due
+        payment = Payment(
+            order_id=order.id,
+            payment_method_id=payment_method_id,
+            amount=order.total,
+            amount_received=order_received,
+            change_due=change_due if index == len(orders) else Decimal("0.00"),
+            reference_code=reference_code,
+            status="completed",
+            received_by=current_user.id,
+        )
+        db.add(payment)
+        remaining_received -= Decimal(str(order.total))
+
+        order.status = "paid"
+
+    table = db.query(TableMaster).filter(TableMaster.id == table_id).first()
+    if table:
+        table.current_status = "available"
+        table.current_order_id = None
+        table.current_waiter_id = None
+
+    db.commit()
+
+    return {
+        "success": True,
+        "table_id": table_id,
+        "orders_paid": len(orders),
+        "table_total": float(table_total),
+        "amount_received": float(received),
+        "change_due": float(change_due),
+        "order_ids": [order.id for order in orders],
+    }
+
+
+def _finalize_order_payment(
+    db: Session,
+    *,
+    order: Order,
+    payment_method_id: int,
+    amount_received: Optional[Decimal],
+    reference_code: Optional[str],
+    current_user: User,
+) -> dict[str, Any]:
+    if not order.customer_id:
+        order.customer_id = _get_or_create_walk_in_customer_id(db)
+
+    method = db.query(PaymentMethod).filter(PaymentMethod.id == payment_method_id).first()
+    if not method or not method.is_enabled:
+        raise HTTPException(status_code=400, detail="Invalid/disabled payment method")
+
+    if order.status == "draft":
+        order.status = "sent_to_kitchen"
+
+    received = Decimal(str(amount_received)) if amount_received is not None else Decimal(str(order.total))
+    if method.type == "cash" and received < Decimal(str(order.total)):
+        raise HTTPException(status_code=400, detail="Received amount is less than order total")
+
+    change = received - Decimal(str(order.total))
+    payment = Payment(
+        order_id=order.id,
+        payment_method_id=payment_method_id,
+        amount=order.total,
+        amount_received=received,
+        change_due=change if change > 0 else Decimal("0.00"),
+        reference_code=reference_code,
+        status="completed",
+        received_by=current_user.id,
+    )
+    db.add(payment)
+
+    order.status = "paid"
+    table = None
+    if order.table_id:
+        table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
+        if table:
+            table.current_status = "available"
+            table.current_waiter_id = None
+            table.current_order_id = None
+
+    db.commit()
+    db.refresh(order)
+
+    if order.table_id:
+        manager.broadcast_sync({
+            "event": "payment_completed",
+            "order_id": order.id,
+            "table_id": order.table_id,
+            "total": float(order.total),
+            "change_due": float(payment.change_due or 0),
+        })
+        manager.broadcast_sync({
+            "event": "table_status_changed",
+            "table_id": order.table_id,
+            "status": "available",
+        })
+
+    return {
+        "success": True,
+        "order_id": order.id,
+        "status": order.status,
+        "change_due": float(payment.change_due or 0),
+    }
+
+
+def _create_razorpay_checkout_order(
+    db: Session,
+    *,
+    order: Order,
+    current_user: User,
+) -> dict[str, Any]:
+    method = _get_payment_method_by_type(db, "upi")
+    client = _get_razorpay_client()
+
+    if order.status == "draft":
+        _send_order_to_kitchen(order, db, current_user)
+        db.commit()
+
+    amount_paise = int((Decimal(str(order.total)) * Decimal("100")).to_integral_value())
+    razorpay_order = client.order.create(
+        {
+            "amount": amount_paise,
+            "currency": "INR",
+            "receipt": order.order_number,
+            "payment_capture": 1,
+        }
+    )
+
+    return {
+        "success": True,
+        "payment_provider": "razorpay",
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "razorpay_order_id": razorpay_order["id"],
+        "amount": float(order.total),
+        "amount_paise": amount_paise,
+        "currency": "INR",
+        "key_id": settings.RAZORPAY_KEY_ID,
+        "payment_method_id": method.id,
+    }
+
 
 def generate_order_number(db: Session, source: str) -> str:
     prefix = "C" if source == "cashier" else "S"
@@ -34,6 +429,7 @@ def list_tables(db: Session = Depends(get_db)):
             waiter = db.query(User).filter(User.id == t.current_waiter_id).first()
             if waiter:
                 waiter_name = waiter.name
+        active_orders = _get_active_table_orders(db, t.id)
         result.append({
             "id": t.id,
             "table_number": t.table_number,
@@ -42,7 +438,9 @@ def list_tables(db: Session = Depends(get_db)):
             "current_status": t.current_status,
             "current_waiter_id": t.current_waiter_id,
             "waiter_name": waiter_name,
-            "current_order_id": t.current_order_id
+            "current_order_id": t.current_order_id,
+            "active_order_count": len(active_orders),
+            "active_order_total": float(sum((Decimal(str(order.total)) for order in active_orders), Decimal("0.00"))),
         })
     return result
 
@@ -51,6 +449,10 @@ def release_table(table_id: int, db: Session = Depends(get_db)):
     table = db.query(TableMaster).filter(TableMaster.id == table_id).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+
+    active_orders = _get_active_table_orders(db, table_id)
+    if active_orders:
+        raise HTTPException(status_code=400, detail="Settle all drafts for this table before releasing it.")
         
     table.current_status = 'available'
     table.current_waiter_id = None
@@ -88,119 +490,93 @@ async def create_cashier_order(order_in: OrderCreate, db: Session = Depends(get_
         db.add(pos_session)
         db.commit()
         db.refresh(pos_session)
-        
-    order_num = generate_order_number(db, "cashier")
-    
-    # Calculate totals
-    subtotal = Decimal("0.00")
-    for item in order_in.items:
-        prod = db.query(Product).filter(Product.id == item.product_id).first()
-        if not prod or not prod.is_active:
-            raise HTTPException(status_code=400, detail=f"Product {item.product_id} not available")
-        subtotal += prod.price * item.quantity
-        
-    # Standard 5% tax or get venue tax settings
-    tax_total = subtotal * Decimal("0.05")
-    total = subtotal + tax_total
 
-    new_order = Order(
-        order_number=order_num,
-        source="cashier",
-        table_id=order_in.table_id,
-        customer_id=order_in.customer_id,
-        pos_session_id=pos_session.id,
-        placed_by_user_id=current_user.id,
-        waiter_id=current_user.id if order_in.table_id else None,
-        status="draft",
-        subtotal=subtotal,
-        tax_total=tax_total,
-        discount_total=Decimal("0.00"),
-        total=total,
-        notes=order_in.notes
-    )
-    db.add(new_order)
-    db.commit()
-    db.refresh(new_order)
-    
-    # Add order items
-    for item in order_in.items:
-        prod = db.query(Product).filter(Product.id == item.product_id).first()
-        line_total = prod.price * item.quantity
-        order_item = OrderItem(
-            order_id=new_order.id,
-            product_id=item.product_id,
-            quantity=item.quantity,
-            unit_price=prod.price,
-            line_discount=Decimal("0.00"),
-            line_total=line_total,
-            kitchen_status="to_cook",
-            notes=item.notes
-        )
-        db.add(order_item)
-        
-    db.commit()
-    db.refresh(new_order)
-    
-    # Associate table with active order
+    table = None
+    active_order = None
     if order_in.table_id:
         table = db.query(TableMaster).filter(TableMaster.id == order_in.table_id).first()
+        if table and table.current_order_id:
+            active_order = db.query(Order).filter(
+                Order.id == table.current_order_id,
+                Order.status.in_(["draft", "sent_to_kitchen"]),
+            ).first()
+
+    if active_order is None:
+        customer_id = order_in.customer_id if order_in.customer_id is not None else _get_or_create_walk_in_customer_id(db)
+        if order_in.customer_id is not None:
+            customer = db.query(Customer).filter(Customer.id == int(order_in.customer_id)).first()
+            if not customer:
+                raise HTTPException(status_code=404, detail="Customer not found")
+        order_num = generate_order_number(db, "cashier")
+        active_order = Order(
+            order_number=order_num,
+            source="cashier",
+            table_id=order_in.table_id,
+            customer_id=customer_id,
+            pos_session_id=pos_session.id,
+            placed_by_user_id=current_user.id,
+            waiter_id=current_user.id if order_in.table_id else None,
+            status="draft",
+            subtotal=Decimal("0.00"),
+            tax_total=Decimal("0.00"),
+            discount_total=Decimal("0.00"),
+            total=Decimal("0.00"),
+            notes=order_in.notes,
+        )
+        db.add(active_order)
+        db.flush()
         if table:
-            table.current_status = 'occupied'
+            table.current_order_id = active_order.id
+            table.current_status = "occupied"
             table.current_waiter_id = current_user.id
-            table.current_order_id = new_order.id
-            db.commit()
-            
-    # Send WebSocket update to CFD channel
+    else:
+        if order_in.notes:
+            active_order.notes = order_in.notes
+        if order_in.customer_id:
+            active_order.customer_id = order_in.customer_id
+        elif not active_order.customer_id:
+            active_order.customer_id = _get_or_create_walk_in_customer_id(db)
+
+    _append_items_to_order(db, active_order, order_in.items, current_user)
+    if order_in.table_id:
+        active_order.status = "sent_to_kitchen"
+    db.commit()
+    db.refresh(active_order)
+
+    if table:
+        table.current_order_id = active_order.id
+        table.current_waiter_id = current_user.id
+        table.current_status = "reserved"
+        db.commit()
+
     if order_in.table_id:
         await manager.broadcast_all({
             "event": "cart_updated",
             "table_id": order_in.table_id,
-            "order_id": new_order.id,
-            "items": [{"name": i.product.name, "quantity": float(i.quantity), "price": float(i.unit_price)} for i in new_order.items],
-            "subtotal": float(new_order.subtotal),
-            "tax_total": float(new_order.tax_total),
-            "total": float(new_order.total)
+            "order_id": active_order.id,
+            "items": [{"name": i.product.name, "quantity": float(i.quantity), "price": float(i.unit_price)} for i in active_order.items],
+            "subtotal": float(active_order.subtotal),
+            "tax_total": float(active_order.tax_total),
+            "total": float(active_order.total)
         })
 
-    return new_order
+    return active_order
 
 @router.put("/orders/{order_id}/items", response_model=OrderResponse)
-async def update_cashier_order_items(order_id: int, items_in: List[OrderItemCreate], db: Session = Depends(get_db)):
+async def update_cashier_order_items(
+    order_id: int,
+    items_in: List[OrderItemCreate],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["cashier", "superadmin"])),
+):
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
         
-    if order.status != 'draft':
-        raise HTTPException(status_code=400, detail="Cannot modify non-draft order")
-        
-    # Clear existing items
-    db.query(OrderItem).filter(OrderItem.order_id == order_id).delete()
-    
-    subtotal = Decimal("0.00")
-    for item in items_in:
-        prod = db.query(Product).filter(Product.id == item.product_id).first()
-        if not prod or not prod.is_active:
-            raise HTTPException(status_code=400, detail=f"Product {item.product_id} not available")
-            
-        line_total = prod.price * item.quantity
-        subtotal += line_total
-        
-        order_item = OrderItem(
-            order_id=order_id,
-            product_id=item.product_id,
-            quantity=item.quantity,
-            unit_price=prod.price,
-            line_discount=Decimal("0.00"),
-            line_total=line_total,
-            kitchen_status="to_cook",
-            notes=item.notes
-        )
-        db.add(order_item)
-        
-    tax_total = subtotal * Decimal("0.05")
-    order.subtotal = subtotal
-    order.tax_total = tax_total
-    order.total = subtotal + tax_total - order.discount_total
+    if order.status == 'paid':
+        raise HTTPException(status_code=400, detail="Cannot modify a paid order")
+
+    _append_items_to_order(db, order, items_in, current_user)
     db.commit()
     db.refresh(order)
     
@@ -218,101 +594,216 @@ async def update_cashier_order_items(order_id: int, items_in: List[OrderItemCrea
         
     return order
 
-@router.post("/orders/{order_id}/pay-and-send", response_model=OrderResponse)
+@router.post("/orders/{order_id}/send-to-kitchen", response_model=Dict[str, Any], dependencies=[cashier_dependency])
+async def send_order_to_kitchen(order_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_role(["cashier", "superadmin"]))):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.status == "draft":
+        _send_order_to_kitchen(order, db, current_user)
+    elif order.status != "sent_to_kitchen":
+        raise HTTPException(status_code=400, detail="Only active table orders can be sent to the kitchen.")
+    if order.table_id:
+        table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
+        if table:
+            table.current_status = "reserved"
+            table.current_order_id = order.id
+            table.current_waiter_id = current_user.id
+    db.commit()
+    db.refresh(order)
+    if order.table_id:
+        await manager.broadcast_all({
+            "event": "order_sent_to_kitchen",
+            "order_id": order.id,
+            "table_id": order.table_id,
+        })
+    return {
+        "success": True,
+        "order_id": order.id,
+        "table_id": order.table_id,
+        "status": order.status,
+    }
+
+
+@router.patch("/orders/{order_id}/customer", dependencies=[cashier_dependency])
+def assign_order_customer(order_id: int, payload: Dict[str, Any], db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    customer_id = payload.get("customer_id")
+    if customer_id is None:
+        order.customer_id = None
+    else:
+        customer = db.query(Customer).filter(Customer.id == int(customer_id)).first()
+        if not customer:
+            raise HTTPException(status_code=404, detail="Customer not found")
+        order.customer_id = customer.id
+
+    db.commit()
+    db.refresh(order)
+    return {"success": True, "order_id": order.id, "customer_id": order.customer_id}
+
+@router.get("/tables/{table_id}/orders", response_model=List[OrderResponse], dependencies=[cashier_dependency])
+def get_table_orders(table_id: int, db: Session = Depends(get_db)):
+    return _get_active_table_orders(db, table_id)
+
+
+@router.get("/tables/{table_id}/current-order", dependencies=[cashier_dependency])
+def get_current_table_order(table_id: int, db: Session = Depends(get_db)):
+    table = db.query(TableMaster).filter(TableMaster.id == table_id).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+
+    order = None
+    if table.current_order_id:
+        order = db.query(Order).filter(
+            Order.id == table.current_order_id,
+            Order.status.in_(["draft", "sent_to_kitchen"]),
+        ).first()
+    if order is None:
+        order = (
+            db.query(Order)
+            .filter(Order.table_id == table_id, Order.status.in_(["draft", "sent_to_kitchen"]))
+            .order_by(Order.created_at.desc())
+            .first()
+        )
+    if order is None:
+        return None
+    if table.current_order_id != order.id:
+        table.current_order_id = order.id
+        db.commit()
+    return _serialize_order(order, db)
+
+@router.post("/tables/{table_id}/pay-all", response_model=Dict[str, Any], dependencies=[cashier_dependency])
+async def pay_all_table_orders(
+    table_id: int,
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["cashier", "superadmin"])),
+):
+    summary = _settle_table_orders(
+        db,
+        table_id=table_id,
+        payment_method_id=int(payload.get("payment_method_id")),
+        amount_received=Decimal(str(payload["amount_received"])) if payload.get("amount_received") is not None else None,
+        reference_code=payload.get("reference_code"),
+        current_user=current_user,
+    )
+    await manager.broadcast_all({
+        "event": "payment_completed",
+        "table_id": table_id,
+        "total": summary["table_total"],
+        "change_due": summary["change_due"],
+        "order_ids": summary["order_ids"],
+    })
+    return summary
+
+@router.post("/orders/{order_id}/pay-and-send", response_model=Dict[str, Any])
 async def pay_and_send(order_id: int, payment_payload: Dict[str, Any], db: Session = Depends(get_db), current_user: User = Depends(require_role(["cashier", "superadmin"]))):
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-        
-    if order.status != 'draft':
-        raise HTTPException(status_code=400, detail="Order already processed")
-        
-    method_id = payment_payload.get("payment_method_id")
-    method = db.query(PaymentMethod).filter(PaymentMethod.id == method_id).first()
-    if not method or not method.is_enabled:
-        raise HTTPException(status_code=400, detail="Invalid/disabled payment method")
-        
-    # Record payment
-    received = Decimal(str(payment_payload.get("amount_received", order.total)))
-    change = received - order.total
-    
-    payment = Payment(
-        order_id=order.id,
-        payment_method_id=method_id,
-        amount=order.total,
-        amount_received=received,
-        change_due=change if change > 0 else Decimal("0.00"),
-        reference_code=payment_payload.get("reference_code"),
-        status="success",
-        received_by=current_user.id
-    )
-    db.add(payment)
-    
-    # Deduct Stock immediately
-    for item in order.items:
-        inv = db.query(InventoryItem).filter(InventoryItem.product_id == item.product_id).first()
-        if inv:
-            inv.current_stock -= item.quantity
-            # Record stock movement
-            mvt = StockMovement(
-                inventory_item_id=inv.id,
-                movement_type="sale_out",
-                quantity=item.quantity,
-                reference_order_id=order.id,
-                performed_by=current_user.id,
-                note=f"Sale order {order.order_number}"
-            )
-            db.add(mvt)
-            
-    # Update order status
-    order.status = "sent_to_kitchen"
-    db.commit()
-    db.refresh(order)
-    
-    # Update table status
-    if order.table_id:
-        table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
-        if table:
-            table.current_status = 'reserved'
-            db.commit()
-            
-    # Send WebSocket events
-    await manager.broadcast_all({
-        "event": "payment_completed",
-        "order_id": order.id,
-        "table_id": order.table_id,
-        "total": float(order.total),
-        "change_due": float(payment.change_due or 0)
-    })
-    
-    await manager.broadcast_all({
-        "event": "order_sent_to_kitchen",
-        "order_id": order.id,
-        "table_id": order.table_id
-    })
-    
-    return order
 
-@router.get("/customers/search")
+    payment_method_id = int(payment_payload.get("payment_method_id") or 0)
+    method = _get_payment_method_by_type(db, "upi") if payment_method_id == 3 else _get_payment_method_by_type(db, "cash")
+
+    if method.type == "upi":
+        return _create_razorpay_checkout_order(db, order=order, current_user=current_user)
+
+    if order.status == 'draft':
+        _send_order_to_kitchen(order, db, current_user)
+        db.commit()
+
+    result = _finalize_order_payment(
+        db,
+        order=order,
+        payment_method_id=int(payment_payload.get("payment_method_id")),
+        amount_received=Decimal(str(payment_payload.get("amount_received", order.total))) if payment_payload.get("amount_received") is not None else None,
+        reference_code=payment_payload.get("reference_code"),
+        current_user=current_user,
+    )
+    return {**_serialize_order(order, db), **result}
+
+
+@router.post("/orders/{order_id}/razorpay/verify", response_model=Dict[str, Any])
+async def verify_razorpay_payment(
+    order_id: int,
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["cashier", "superadmin"])),
+):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.status == "paid":
+        return {"success": True, "order_id": order.id, "status": order.status}
+
+    razorpay_order_id = payload.get("razorpay_order_id")
+    razorpay_payment_id = payload.get("razorpay_payment_id")
+    razorpay_signature = payload.get("razorpay_signature")
+    if not razorpay_order_id or not razorpay_payment_id or not razorpay_signature:
+        raise HTTPException(status_code=400, detail="Missing Razorpay payment details")
+
+    client = _get_razorpay_client()
+    try:
+        client.utility.verify_payment_signature(
+            {
+                "razorpay_order_id": razorpay_order_id,
+                "razorpay_payment_id": razorpay_payment_id,
+                "razorpay_signature": razorpay_signature,
+            }
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Razorpay signature verification failed")
+
+    result = _finalize_order_payment(
+        db,
+        order=order,
+        payment_method_id=_get_payment_method_by_type(db, "upi").id,
+        amount_received=Decimal(str(order.total)),
+        reference_code=razorpay_payment_id,
+        current_user=current_user,
+    )
+    return {
+        **result,
+        "payment_provider": "razorpay",
+        "razorpay_order_id": razorpay_order_id,
+        "razorpay_payment_id": razorpay_payment_id,
+    }
+
+@router.get("/customers/search", dependencies=[cashier_dependency])
 def search_customer(q: str, db: Session = Depends(get_db)):
-    customers = db.query(Customer).filter(
-        (Customer.name.like(f"%{q}%")) | (Customer.mobile_number.like(f"%{q}%"))
-    ).all()
+    query = q.strip()
+    normalized_phone = _normalize_phone(query)
+    if not query:
+        customers = []
+    elif query.isdigit() or normalized_phone == query:
+        customers = db.query(Customer).filter(Customer.mobile_number.like(f"%{normalized_phone}%")).all()
+    elif normalized_phone:
+        customers = db.query(Customer).filter(
+            or_(
+                Customer.name.like(f"%{query}%"),
+                Customer.mobile_number.like(f"%{normalized_phone}%"),
+            )
+        ).all()
+    else:
+        customers = db.query(Customer).filter(Customer.name.like(f"%{query}%")).all()
     return [{"id": c.id, "name": c.name, "mobile_number": c.mobile_number, "email": c.email} for c in customers]
 
-@router.post("/customers", response_model=CustomerResponse)
+
+@router.get("/customers/{customer_id}", response_model=CustomerResponse, dependencies=[cashier_dependency])
+def get_customer(customer_id: int, db: Session = Depends(get_db)):
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return customer
+
+@router.post("/customers/resolve", response_model=CustomerResponse, dependencies=[cashier_dependency])
+def resolve_customer(cust_in: CustomerResolve, db: Session = Depends(get_db)):
+    return _upsert_customer(db, name=cust_in.name, mobile_number=cust_in.mobile_number, email=cust_in.email)
+
+
+@router.post("/customers", response_model=CustomerResponse, dependencies=[cashier_dependency])
 def register_customer(cust_in: CustomerSignup, db: Session = Depends(get_db)):
-    existing = db.query(Customer).filter(Customer.mobile_number == cust_in.mobile_number).first()
-    if existing:
-        return existing
-        
-    new_cust = Customer(
-        name=cust_in.name,
-        mobile_number=cust_in.mobile_number,
-        email=cust_in.email,
-        is_guest=False
-    )
-    db.add(new_cust)
-    db.commit()
-    db.refresh(new_cust)
-    return new_cust
+    return _upsert_customer(db, name=cust_in.name, mobile_number=cust_in.mobile_number, email=cust_in.email)

@@ -1,6 +1,8 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from typing import List, Dict
+import asyncio
 import json
+from typing import List, Dict, Optional
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 router = APIRouter(prefix="/ws", tags=["websockets"])
 
@@ -8,9 +10,11 @@ class ConnectionManager:
     def __init__(self):
         # Maps connection lists to client types, e.g. "admin", "cashier", "user_12"
         self.active_connections: Dict[str, List[WebSocket]] = {}
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
 
     async def connect(self, websocket: WebSocket, client_type: str):
         await websocket.accept()
+        self.loop = asyncio.get_running_loop()
         if client_type not in self.active_connections:
             self.active_connections[client_type] = []
         self.active_connections[client_type].append(websocket)
@@ -37,6 +41,18 @@ class ConnectionManager:
     async def broadcast_all(self, message: dict):
         for client_type in list(self.active_connections.keys()):
             await self.broadcast_to_type(client_type, message)
+
+    def broadcast_sync(self, message: dict, client_type: Optional[str] = None):
+        """Schedule a websocket broadcast from sync code without blocking."""
+        if not self.loop or not self.loop.is_running():
+            return
+
+        if client_type is None:
+            coro = self.broadcast_all(message)
+        else:
+            coro = self.broadcast_to_type(client_type, message)
+
+        asyncio.run_coroutine_threadsafe(coro, self.loop)
 
 manager = ConnectionManager()
 

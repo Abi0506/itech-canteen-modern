@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../utils/api';
 import { Search, Plus, Minus, Table2, Send, CreditCard, CheckCircle, Clock3, MapPinned, TicketPercent } from 'lucide-react';
+import { groupOrderItems } from '../../utils/orderItems';
 
 const Billing = () => {
   const [floors, setFloors] = useState([]);
@@ -85,10 +86,14 @@ const Billing = () => {
     });
   }, [flatItems, activeCategoryId, search]);
 
-  const currentItems = activeOrder?.items ? Object.values(activeOrder.items) : [];
+  const currentItems = useMemo(() => {
+    const items = activeOrder?.items ? Object.values(activeOrder.items) : [];
+    return groupOrderItems(items);
+  }, [activeOrder]);
 
   const subtotal = currentItems.reduce((sum, item) => {
-    return sum + (Number(item.rate || 0) * Number(item.quantity || 0));
+    const price = Number(item.unit_price || item.rate || item.price || 0);
+    return sum + (price * Number(item.quantity || 0));
   }, 0);
 
   const loadBillSummary = async (orderId = activeOrder?.id, coupon = couponCode, points = redeemPoints) => {
@@ -372,7 +377,7 @@ const Billing = () => {
                   <div>
                     <p className="font-semibold text-on-surface">{item.name}</p>
                     <p className="text-[10px] text-outline">
-                      {item.quantity} x ₹{Number(item.rate).toFixed(2)}
+                      {item.quantity} x ₹{Number(item.unit_price || item.rate || item.price || 0).toFixed(2)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">

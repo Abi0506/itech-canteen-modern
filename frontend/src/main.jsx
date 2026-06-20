@@ -21,7 +21,6 @@ import AdminReports from './pages/Admin/Reports';
 import CashierTables from './pages/Cashier/Tables';
 import CashierOrderScreen from './pages/Cashier/OrderScreen';
 import CashierOrdersList from './pages/Cashier/OrdersList';
-import CashierCustomers from './pages/Cashier/Customers';
 
 // Inventory Pages
 import InventoryDashboard from './pages/Inventory/Dashboard';
@@ -142,7 +141,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 <Route path="/cashier/tables" element={<CashierTables />} />
                 <Route path="/cashier/order/:tableId" element={<CashierOrderScreen />} />
                 <Route path="/cashier/orders" element={<CashierOrdersList />} />
-                <Route path="/cashier/customers" element={<CashierCustomers />} />
               </Route>
 
               {/* ── Inventory Manager routes ─── */}
