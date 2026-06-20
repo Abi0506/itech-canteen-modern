@@ -26,6 +26,8 @@ from app.db.models import (
 )
 from app.db.session import get_db
 from app.routes.websockets import manager
+from app.routes.loyalty import award_loyalty_points
+from app.db.models import LoyaltyCredit
 
 router = APIRouter(prefix="/self-order", tags=["self_order"])
 
@@ -123,6 +125,26 @@ def _serialize_order(db: Session, order: Order | None) -> dict | None:
             "status": item.kitchen_status,
         }
 
+    customer_info = None
+    loyalty_info = None
+    if order.customer_id:
+        customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
+        if customer:
+            customer_info = {
+                "id": customer.id,
+                "name": customer.name,
+                "mobile_number": customer.mobile_number,
+                "email": customer.email,
+                "is_guest": customer.is_guest,
+            }
+            if not customer.is_guest:
+                loyalty = db.query(LoyaltyCredit).filter(LoyaltyCredit.customer_id == customer.id).first()
+                total_points = loyalty.total_credits if loyalty else 0
+                loyalty_info = {
+                    "total_points": total_points,
+                    "can_claim_reward": total_points >= 50,
+                }
+
     return {
         "id": order.id,
         "bill_number": order.order_number,
@@ -133,7 +155,10 @@ def _serialize_order(db: Session, order: Order | None) -> dict | None:
         "tax_amount": float(order.tax_total or 0),
         "discount_amount": float(order.discount_total or 0),
         "total_amount": float(order.total or 0),
+        "customer": customer_info,
+        "loyalty": loyalty_info,
     }
+
 
 
 def _all_order_items_done(order: Order) -> bool:
@@ -161,10 +186,7 @@ def _get_or_create_customer(db: Session, payload: dict) -> Customer:
     customer = (
         db.query(Customer)
         .filter(
-            or_(
-                Customer.mobile_number == mobile_number,
-                Customer.mobile_number.like(f"%{mobile_number}%"),
-            ),
+            Customer.mobile_number == mobile_number
         )
         .first()
     )
@@ -194,15 +216,15 @@ def resolve_customer(phone_number: str, db: Session = Depends(get_db)):
     customer = (
         db.query(Customer)
         .filter(
-            or_(
-                Customer.mobile_number == mobile_number,
-                Customer.mobile_number.like(f"%{mobile_number}%"),
-            ),
+            Customer.mobile_number == mobile_number
         )
         .first()
     )
     if not customer:
         return {"exists": False}
+
+    loyalty = db.query(LoyaltyCredit).filter(LoyaltyCredit.customer_id == customer.id).first()
+    loyalty_points = loyalty.total_credits if loyalty else 0
 
     return {
         "exists": True,
@@ -211,6 +233,10 @@ def resolve_customer(phone_number: str, db: Session = Depends(get_db)):
             "name": customer.name,
             "email": customer.email,
             "mobile_number": customer.mobile_number,
+        },
+        "loyalty": {
+            "total_points": loyalty_points,
+            "can_claim_reward": loyalty_points >= 50,
         },
     }
 
@@ -705,12 +731,19 @@ async def pay_order(order_id: int, payload: dict, db: Session = Depends(get_db))
             table.current_order_id = None
             table.current_waiter_id = None
 
+    # Award loyalty points based on order total
+    loyalty_points_awarded = 0
+    if order.customer_id:
+        loyalty_points_awarded = award_loyalty_points(db, order.customer_id, order.id, float(order.total))
+
     db.commit()
     db.refresh(order)
+    serialized = _serialize_order(db, order)
+    serialized["loyalty_points_awarded"] = loyalty_points_awarded
     await manager.broadcast_all({
         "event": "payment_completed",
         "table_id": order.table_id,
         "order_id": order.id,
         "table_status": "available",
     })
-    return _serialize_order(db, order)
+    return serialized

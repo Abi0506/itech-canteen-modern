@@ -47,6 +47,7 @@ const SelfOrder = () => {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [loyaltyInfo, setLoyaltyInfo] = useState(null);
   const orderItems = useMemo(() => Object.values(order?.items || {}), [order]);
   const completedItems = orderItems.filter((item) => isCompletedStatus(item.status)).length;
   const isReadyForPayment = orderItems.length > 0 && completedItems === orderItems.length;
@@ -172,6 +173,9 @@ const SelfOrder = () => {
       if (nextOrder) {
         setOrder(nextOrder);
         hydrateOrder(nextOrder);
+        if (nextOrder.loyalty) {
+          setLoyaltyInfo(nextOrder.loyalty);
+        }
       }
       setAllItemsDone(nextDone);
       if (nextOrder?.status === 'paid') {
@@ -249,6 +253,9 @@ const SelfOrder = () => {
     setSession(payload.session || null);
     setOrder(payload.order || null);
     hydrateOrder(payload.order);
+    if (payload.order?.loyalty) {
+      setLoyaltyInfo(payload.order.loyalty);
+    }
     const pin = payload.session?.session_pin;
     if (pin) {
       setSessionPin(pin);
@@ -297,6 +304,9 @@ const SelfOrder = () => {
 
       if (response.data?.exists) {
         const customer = response.data.customer || {};
+        if (response.data.loyalty) {
+          setLoyaltyInfo(response.data.loyalty);
+        }
         await startSessionWithPayload({
           phone_no: signup.phone_no,
           name: customer.name || signup.name || '',
@@ -410,10 +420,38 @@ const SelfOrder = () => {
       });
       setOrder(response.data);
       setScreen('confirmed');
-      setMessage('Payment completed successfully. Your bill is settled.');
+      const pts = response.data?.loyalty_points_awarded;
+      if (pts && pts > 0) {
+        setMessage(`Payment completed successfully. Your bill is settled. You earned ${pts} loyalty points!`);
+      } else {
+        setMessage('Payment completed successfully. Your bill is settled.');
+      }
       await loadPublicMenu();
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not complete payment.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const claimReward = async () => {
+    const customerId = order?.customer?.id || order?.customer_id;
+    if (!customerId) {
+      setError('No customer associated with this session to claim reward.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const response = await api.post(`/loyalty/${customerId}/claim-reward`);
+      setMessage(response.data.message || 'Reward claimed! You get a free Signature Drink.');
+      setLoyaltyInfo({ total_points: 0, can_claim_reward: false });
+      if (order?.id) {
+        await checkKitchenStatus(true);
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to claim reward.');
     } finally {
       setBusy(false);
     }
@@ -515,6 +553,57 @@ const SelfOrder = () => {
                   </div>
                 </div>
               </div>
+
+              {screen === 'order' && loyaltyInfo && (
+                <div className="mb-5 rounded-3xl border border-primary/20 bg-gradient-to-r from-primary/10 to-primary/5 p-4 md:p-5 relative overflow-hidden shadow-sm">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/20 text-primary">
+                        <span className="text-xl font-bold">⭐</span>
+                      </div>
+                      <div>
+                        <h3 className="font-headline text-lg font-black text-on-surface">
+                          Welcome back, {order?.customer?.name || signup.name || 'Valued Customer'}!
+                        </h3>
+                        <p className="text-xs text-secondary">
+                          You have <span className="font-bold text-primary">{loyaltyInfo.total_points}</span> loyalty points.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:items-end">
+                      {loyaltyInfo.can_claim_reward ? (
+                        <button
+                          type="button"
+                          onClick={claimReward}
+                          disabled={busy}
+                          className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-md hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                        >
+                          🎁 Claim free Signature Drink!
+                        </button>
+                      ) : (
+                        <div className="text-xs font-semibold text-secondary">
+                          {50 - loyaltyInfo.total_points} more points to get a free drink!
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-outline mb-1.5">
+                      <span>Reward Progress</span>
+                      <span>{loyaltyInfo.total_points} / 50 Points</span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-surface-container-high overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all duration-500 ease-out rounded-full"
+                        style={{ width: `${Math.min(100, (loyaltyInfo.total_points / 50) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="mb-5 flex flex-wrap gap-2 rounded-3xl border border-outline/10 bg-surface-container-low p-2.5">
                 {customerTabs.map((tab) => (

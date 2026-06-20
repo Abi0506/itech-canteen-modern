@@ -30,9 +30,24 @@ const OrderScreen = () => {
   const [newCustPhone, setNewCustPhone] = useState('');
   const [newCustEmail, setNewCustEmail] = useState('');
   const [isRegisteringNewCust, setIsRegisteringNewCust] = useState(false);
+  const [customerLoyalty, setCustomerLoyalty] = useState(null);
 
   // Receipt Modal State
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+
+  const loadCustomerLoyalty = async (customerId) => {
+    if (!customerId) {
+      setCustomerLoyalty(null);
+      return;
+    }
+    try {
+      const res = await api.get(`/cashier/customers/${customerId}/loyalty`);
+      setCustomerLoyalty(res.data || null);
+    } catch (err) {
+      console.error('Failed to load customer loyalty info', err);
+      setCustomerLoyalty(null);
+    }
+  };
 
   const loadBillSummary = async (orderId = currentOrder?.id) => {
     if (!orderId) {
@@ -77,6 +92,7 @@ const OrderScreen = () => {
     setNewCustEmail('');
     setIsRegisteringNewCust(false);
     setShowCustomerModal(false);
+    setCustomerLoyalty(null);
   };
 
   const loadData = async () => {
@@ -111,6 +127,12 @@ const OrderScreen = () => {
         await loadBillSummary(orderData.id);
       } else {
         setBillSummary(null);
+      }
+      const orderCustId = orderData?.customer_id || orderData?.customer?.id;
+      if (orderCustId && !orderData?.customer?.is_guest) {
+        await loadCustomerLoyalty(orderCustId);
+      } else {
+        setCustomerLoyalty(null);
       }
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to load cashier data.');
@@ -154,6 +176,11 @@ const OrderScreen = () => {
       if (res.data?.id) {
         await loadBillSummary(res.data.id);
       }
+      if (customerId) {
+        await loadCustomerLoyalty(customerId);
+      } else {
+        setCustomerLoyalty(null);
+      }
       setMessage('Customer assigned to this order successfully.');
       setShowCustomerModal(false);
       setCustomerSearchText('');
@@ -167,8 +194,8 @@ const OrderScreen = () => {
 
   const handleRegisterAndAssignCustomer = async (e) => {
     e.preventDefault();
-    if (!newCustName.trim() || !newCustPhone.trim() || !newCustEmail.trim()) {
-      setError('Name, phone number, and email are required to add a customer.');
+    if (!newCustName.trim() || !newCustPhone.trim()) {
+      setError('Name and phone number are required to add a customer.');
       return;
     }
     setBusy(true);
@@ -185,7 +212,7 @@ const OrderScreen = () => {
       const regRes = await api.post('/cashier/customers', {
         name: newCustName.trim(),
         mobile_number: newCustPhone.trim(),
-        email: newCustEmail.trim(),
+        email: newCustEmail.trim() || undefined,
       });
       const newCustomer = regRes.data;
       if (!newCustomer?.id) {
@@ -200,6 +227,9 @@ const OrderScreen = () => {
       setCurrentOrder(assignRes.data || null);
       if (assignRes.data?.id) {
         await loadBillSummary(assignRes.data.id);
+      }
+      if (newCustomer.id) {
+        await loadCustomerLoyalty(newCustomer.id);
       }
       setMessage('New customer registered and assigned successfully.');
       setShowCustomerModal(false);
@@ -225,9 +255,26 @@ const OrderScreen = () => {
       if (res.data?.id) {
         await loadBillSummary(res.data.id);
       }
+      setCustomerLoyalty(null);
       setMessage('Customer profile unlinked from order.');
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to remove customer.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleClaimReward = async () => {
+    if (!selectedCustomer?.id) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const res = await api.post(`/loyalty/${selectedCustomer.id}/claim-reward`);
+      setMessage(res.data?.message || 'Loyalty reward claimed successfully!');
+      await loadCustomerLoyalty(selectedCustomer.id);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to claim loyalty reward.');
     } finally {
       setBusy(false);
     }
@@ -423,7 +470,9 @@ const OrderScreen = () => {
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
               });
-              setMessage(`UPI payment recorded. Change due: Rs.${Number(verifyRes.data.change_due || 0).toFixed(2)}. Ready for the next customer.`);
+              const verifyPts = verifyRes.data?.loyalty_points_awarded;
+              const verifyLoyaltyMsg = verifyPts && verifyPts > 0 ? ` Customer earned ${verifyPts} loyalty points!` : '';
+              setMessage(`UPI payment recorded. Change due: Rs.${Number(verifyRes.data.change_due || 0).toFixed(2)}.${verifyLoyaltyMsg} Ready for the next customer.`);
               resetForNextCustomer();
               await loadData();
             } catch (verifyErr) {
@@ -449,7 +498,9 @@ const OrderScreen = () => {
         return;
       }
 
-      setMessage(`Payment recorded. Change due: Rs.${Number(res.data.change_due || 0).toFixed(2)}. Ready for the next customer.`);
+      const pts = res.data?.loyalty_points_awarded;
+      const loyaltyMsg = pts && pts > 0 ? ` Customer earned ${pts} loyalty points!` : '';
+      setMessage(`Payment recorded. Change due: Rs.${Number(res.data.change_due || 0).toFixed(2)}.${loyaltyMsg} Ready for the next customer.`);
       resetForNextCustomer();
       await loadData();
     } catch (err) {
@@ -535,12 +586,33 @@ const OrderScreen = () => {
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-outline">Customer</p>
               {selectedCustomer ? (
-                <div className="mt-1">
-                  <h2 className="font-headline text-lg font-bold text-on-surface">{selectedCustomer.name}</h2>
-                  <p className="text-xs text-secondary">
-                    {selectedCustomer.mobile_number}
-                    {selectedCustomer.email ? ` | ${selectedCustomer.email}` : ''}
-                  </p>
+                <div className="mt-1 flex flex-col gap-2">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="font-headline text-lg font-bold text-on-surface">{selectedCustomer.name}</h2>
+                      {customerLoyalty && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
+                          ⭐ {customerLoyalty.loyalty_points} pts
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-secondary">
+                      {selectedCustomer.mobile_number}
+                      {selectedCustomer.email ? ` | ${selectedCustomer.email}` : ''}
+                    </p>
+                  </div>
+                  {customerLoyalty?.can_claim_reward && (
+                    <div className="mt-1">
+                      <button
+                        type="button"
+                        onClick={handleClaimReward}
+                        disabled={busy}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-emerald-700 disabled:opacity-50 transition-all"
+                      >
+                        🎁 Claim Free Drink
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="mt-1">
@@ -908,10 +980,9 @@ const OrderScreen = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-secondary uppercase mb-1">Email Address *</label>
+                  <label className="block text-[10px] font-bold text-secondary uppercase mb-1">Email Address <span className="normal-case font-normal">(optional)</span></label>
                   <input
                     type="email"
-                    required
                     placeholder="e.g. john@example.com"
                     className="w-full p-2.5 bg-surface-container-low border border-outline/10 rounded-xl text-xs text-on-surface"
                     value={newCustEmail}

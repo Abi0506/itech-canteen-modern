@@ -10,11 +10,27 @@ from typing import List, Optional, Dict, Any
 
 from app.core.config import settings
 from app.db.session import get_db
-from app.db.models import User, TableMaster, Order, OrderItem, Product, InventoryItem, StockMovement, Customer, PosSession, Payment, PaymentMethod, TableSession
+from app.db.models import (
+    User,
+    TableMaster,
+    Order,
+    OrderItem,
+    Product,
+    InventoryItem,
+    StockMovement,
+    Customer,
+    PosSession,
+    Payment,
+    PaymentMethod,
+    TableSession,
+    LoyaltyCredit,
+    LoyaltyTransaction
+)
 from app.models.schemas import OrderCreate, OrderResponse, CustomerSignup, CustomerResolve, CustomerResponse, OrderItemCreate
 from app.routes.auth import require_role
 from app.routes.websockets import manager
 from app.services.email import send_table_release_email
+from app.routes.loyalty import award_loyalty_points
 
 router = APIRouter(prefix="/cashier", tags=["cashier"])
 
@@ -51,10 +67,7 @@ def _upsert_customer(
     existing = (
         db.query(Customer)
         .filter(
-            or_(
-                Customer.mobile_number == phone,
-                Customer.mobile_number.like(f"%{phone}%"),
-            )
+            Customer.mobile_number == phone
         )
         .first()
     )
@@ -74,8 +87,8 @@ def _upsert_customer(
 
     cleaned_name = name.strip() if name and name.strip() else None
     cleaned_email = email.strip() if email and email.strip() else None
-    if require_complete_profile and (not cleaned_name or not cleaned_email):
-        raise HTTPException(status_code=400, detail="Name, phone number, and email are required to add a new customer.")
+    if require_complete_profile and not cleaned_name:
+        raise HTTPException(status_code=400, detail="Name and phone number are required to add a new customer.")
 
     cleaned_name = cleaned_name or _generate_customer_name(phone)
 
@@ -322,6 +335,12 @@ def _settle_table_orders(
         table.current_order_id = None
         table.current_waiter_id = None
 
+    # Award loyalty points for each order in the table settlement
+    loyalty_points_total = 0
+    for order in orders:
+        if order.customer_id:
+            loyalty_points_total += award_loyalty_points(db, order.customer_id, order.id, float(order.total))
+
     db.commit()
 
     return {
@@ -332,6 +351,7 @@ def _settle_table_orders(
         "amount_received": float(received),
         "change_due": float(change_due),
         "order_ids": [order.id for order in orders],
+        "loyalty_points_awarded": loyalty_points_total,
     }
 
 
@@ -384,6 +404,11 @@ def _finalize_order_payment(
             table.current_waiter_id = current_user.id if current_user else table.current_waiter_id
             table.current_order_id = order.id
 
+    # Award loyalty points based on order total
+    loyalty_points_awarded = 0
+    if order.customer_id:
+        loyalty_points_awarded = award_loyalty_points(db, order.customer_id, order.id, float(order.total))
+
     db.commit()
     db.refresh(order)
 
@@ -406,6 +431,7 @@ def _finalize_order_payment(
         "order_id": order.id,
         "status": order.status,
         "change_due": float(payment.change_due or 0),
+        "loyalty_points_awarded": loyalty_points_awarded,
     }
 
 
@@ -1005,10 +1031,20 @@ def search_customer(q: str, db: Session = Depends(get_db)):
     for sc in staff_customers:
         merged[sc.id] = sc
 
-    return [
-        {"id": c.id, "name": c.name, "mobile_number": c.mobile_number, "email": c.email, "is_guest": bool(c.is_guest)}
-        for c in merged.values()
-    ]
+    from app.db.models import LoyaltyCredit
+    results = []
+    for c in merged.values():
+        loyalty = db.query(LoyaltyCredit).filter(LoyaltyCredit.customer_id == c.id).first()
+        results.append({
+            "id": c.id,
+            "name": c.name,
+            "mobile_number": c.mobile_number,
+            "email": c.email,
+            "is_guest": bool(c.is_guest),
+            "loyalty_points": loyalty.total_credits if loyalty else 0,
+            "can_claim_reward": (loyalty.total_credits if loyalty else 0) >= 50,
+        })
+    return results
 
 
 @router.get("/customers/{customer_id}", response_model=CustomerResponse, dependencies=[cashier_dependency])
@@ -1038,3 +1074,34 @@ def register_customer(cust_in: CustomerSignup, db: Session = Depends(get_db)):
         email=cust_in.email,
         require_complete_profile=True,
     )
+
+
+@router.get("/customers/{customer_id}/loyalty", dependencies=[cashier_dependency])
+def get_customer_loyalty(customer_id: int, db: Session = Depends(get_db)):
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    loyalty = db.query(LoyaltyCredit).filter(LoyaltyCredit.customer_id == customer_id).first()
+    txs = (
+        db.query(LoyaltyTransaction)
+        .filter(LoyaltyTransaction.customer_id == customer_id)
+        .order_by(LoyaltyTransaction.created_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    total_points = loyalty.total_credits if loyalty else 0
+    return {
+        "customer_id": customer_id,
+        "name": customer.name,
+        "mobile_number": customer.mobile_number,
+        "loyalty_points": total_points,
+        "can_claim_reward": total_points >= 50,
+        "reward_threshold": 50,
+        "free_drink_name": "Signature Drink",
+        "recent_transactions": [
+            {"type": t.type, "amount": t.amount, "created_at": t.created_at}
+            for t in txs
+        ],
+    }
