@@ -1,23 +1,172 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import api from '../../utils/api';
-import { TrendingUp, ShoppingBag, DollarSign, Users } from 'lucide-react';
+import { TrendingUp, ShoppingBag, DollarSign, Users, Calendar, BarChart2 } from 'lucide-react';
 
 const formatCurrency = (value) => `Rs.${Number(value || 0).toFixed(2)}`;
 
-const formatDayLabel = (dateString) => {
-  const parsedDate = new Date(`${dateString}T00:00:00`);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return dateString;
+/* ─────────────────────────────────────────────
+   SVG Bar Chart Component
+   Shows single bars with a toggle between Revenue and Sales qty, 
+   using HTML tooltips to prevent clipping.
+───────────────────────────────────────────── */
+const BarChart = ({ data }) => {
+  const [hovered, setHovered] = useState(null);
+  const [activeMetric, setActiveMetric] = useState('revenue');
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64 text-secondary text-sm">
+        No sales data found for this period.
+      </div>
+    );
   }
-  return parsedDate.toLocaleDateString('en-US', {
-    day: '2-digit',
-    month: 'short',
-  });
+
+  const maxValue = Math.max(...data.map((d) => d[activeMetric]), 1);
+  const BAR_H = 200;
+  const BAR_W = 36; // Slightly wider for a single bar
+  const GAP = 20;
+  const LABEL_H = 44;
+  const PADDING_L = 56;
+  const PADDING_R = 20;
+  const totalW = PADDING_L + data.length * (BAR_W + GAP) + PADDING_R;
+
+  const primaryColor = '#9f402d';   // primary
+  const secondaryColor = '#006b5b'; // tertiary (teal accent)
+
+  const activeColor = activeMetric === 'revenue' ? primaryColor : secondaryColor;
+
+  return (
+    <div>
+      {/* Metric Toggle */}
+      <div className="flex gap-2 mb-4">
+        <button
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+            activeMetric === 'revenue' ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-secondary hover:text-primary'
+          }`}
+          onClick={() => setActiveMetric('revenue')}
+        >
+          Revenue (Rs.)
+        </button>
+        <button
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+            activeMetric === 'quantity' ? 'bg-[#006b5b] text-on-primary' : 'bg-surface-container-high text-secondary hover:text-[#006b5b]'
+          }`}
+          onClick={() => setActiveMetric('quantity')}
+        >
+          Units Sold
+        </button>
+      </div>
+
+      <div className="overflow-x-auto relative">
+        <svg
+          width={totalW}
+          height={BAR_H + LABEL_H + 20}
+          style={{ minWidth: Math.min(totalW, 600) }}
+        >
+          {/* Y-axis grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
+            const y = 10 + (1 - pct) * BAR_H;
+            return (
+              <g key={pct}>
+                <line
+                  x1={PADDING_L - 8}
+                  x2={totalW - PADDING_R}
+                  y1={y}
+                  y2={y}
+                  stroke="#e5e7eb"
+                  strokeWidth={1}
+                  strokeDasharray={pct === 0 ? '0' : '4 3'}
+                />
+                <text x={PADDING_L - 12} y={y + 4} textAnchor="end" fontSize={9} fill="#9ca3af">
+                  {pct === 0 
+                    ? '0' 
+                    : activeMetric === 'revenue' 
+                      ? formatCurrency(maxValue * pct).replace('Rs.', '₹')
+                      : Math.round(maxValue * pct)}
+                </text>
+              </g>
+            );
+          })}
+
+          {data.map((item, i) => {
+            const x = PADDING_L + i * (BAR_W + GAP);
+            const valH = Math.max(2, (item[activeMetric] / maxValue) * BAR_H);
+            const isHovered = hovered === i;
+
+            return (
+              <g
+                key={item.name}
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered(null)}
+                style={{ cursor: 'pointer' }}
+              >
+                {/* Bar */}
+                <rect
+                  x={x}
+                  y={10 + BAR_H - valH}
+                  width={BAR_W}
+                  height={valH}
+                  rx={4}
+                  fill={activeColor}
+                  opacity={isHovered ? 1 : 0.82}
+                />
+
+                {/* X-axis label */}
+                <text
+                  x={x + BAR_W / 2}
+                  y={10 + BAR_H + 14}
+                  textAnchor="middle"
+                  fontSize={8.5}
+                  fill="#6b7280"
+                  transform={`rotate(-30, ${x + BAR_W / 2}, ${10 + BAR_H + 14})`}
+                >
+                  {item.name.length > 12 ? item.name.slice(0, 12) + '…' : item.name}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+
+        {/* HTML Tooltip on hover */}
+        {hovered !== null && (
+          <div
+            className="absolute pointer-events-none bg-gray-800 text-white rounded-lg p-3 shadow-lg z-10"
+            style={{
+              left: Math.max(10, PADDING_L + hovered * (BAR_W + GAP) + BAR_W / 2 - 80),
+              bottom: LABEL_H + 30 + Math.max(2, (data[hovered][activeMetric] / maxValue) * BAR_H),
+              width: 160,
+              transform: 'translateY(-10px)'
+            }}
+          >
+            <p className="text-xs font-bold text-center mb-1 truncate">
+              {data[hovered].name}
+            </p>
+            <p className="text-[10px] text-gray-300 text-center">
+              Revenue: {formatCurrency(data[hovered].revenue)}
+            </p>
+            <p className="text-[10px] text-gray-300 text-center">
+              Sales: {data[hovered].quantity} units
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
+/* ─────────────────────────────────────────────
+   Pie Chart Component (unchanged logic, improved style)
+───────────────────────────────────────────── */
 const PieChartCard = ({ data }) => {
   const total = data.reduce((sum, item) => sum + Number(item.revenue || 0), 0);
-  const colors = ['#b04a2f', '#d97a47', '#e8b563', '#8a6d3b', '#f2d7a1', '#6d4c41'];
+  const colors = [
+    '#9f402d', // primary
+    '#e2725b', // primary-container
+    '#006b5b', // tertiary
+    '#ffb4a5', // primary-fixed-dim
+    '#00a58e', // tertiary-container
+    '#802918', // on-primary-fixed-variant
+  ];
 
   let cumulative = 0;
   const slices = data.map((item, index) => {
@@ -33,138 +182,124 @@ const PieChartCard = ({ data }) => {
     const y1 = 50 + Math.sin(startAngle) * 42;
     const x2 = 50 + Math.cos(endAngle) * 42;
     const y2 = 50 + Math.sin(endAngle) * 42;
-
-    const path = percentage === 0
-      ? null
-      : `M 50 50 L ${x1} ${y1} A 42 42 0 ${largeArc} 1 ${x2} ${y2} Z`;
-
-    return {
-      ...item,
-      color: colors[index % colors.length],
-      path,
-      percentage
-    };
+    const path =
+      percentage === 0 ? null : `M 50 50 L ${x1} ${y1} A 42 42 0 ${largeArc} 1 ${x2} ${y2} Z`;
+    return { ...item, color: colors[index % colors.length], path, percentage };
   });
 
   return (
-    <div className="bg-surface-container-low border border-outline/10 p-6 rounded-2xl space-y-5">
-      <div>
-        <h3 className="font-headline font-bold text-sm text-on-surface">Category Revenue Mix</h3>
-        <p className="text-xs text-secondary mt-1">Pie chart view of category contribution.</p>
-      </div>
-
+    <div className="space-y-4">
       {total > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6 items-center">
+        <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6 items-center">
           <div className="flex justify-center">
-            <svg viewBox="0 0 100 100" className="w-52 h-52 drop-shadow-sm">
-              {slices.map((slice) => (
-                slice.path ? <path key={slice.name} d={slice.path} fill={slice.color} /> : null
-              ))}
-              <circle cx="50" cy="50" r="20" fill="white" />
-              <text x="50" y="47" textAnchor="middle" className="fill-[#1f2937]" fontSize="7" fontWeight="700">
+            <svg viewBox="0 0 100 100" className="w-44 h-44 drop-shadow-sm">
+              {slices.map((slice) =>
+                slice.path ? <path key={slice.name} d={slice.path} fill={slice.color} /> : null,
+              )}
+              <circle cx="50" cy="50" r="22" fill="white" />
+              <text x="50" y="47" textAnchor="middle" className="fill-[#1f2937]" fontSize="6.5" fontWeight="700">
                 Total
               </text>
-              <text x="50" y="56" textAnchor="middle" className="fill-[#1f2937]" fontSize="7" fontWeight="700">
+              <text x="50" y="56" textAnchor="middle" className="fill-[#1f2937]" fontSize="6" fontWeight="700">
                 {formatCurrency(total)}
               </text>
             </svg>
           </div>
-
-          <div className="space-y-3">
+          <div className="space-y-2">
             {slices.map((slice) => (
-              <div key={slice.name} className="flex items-center justify-between gap-4 rounded-xl border border-outline/10 bg-surface p-3">
-                <div className="flex items-center gap-3">
-                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: slice.color }} />
+              <div
+                key={slice.name}
+                className="flex items-center justify-between gap-4 rounded-xl border border-outline/10 bg-surface p-2.5"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
                   <div>
-                    <p className="font-semibold text-on-surface">{slice.name}</p>
-                    <p className="text-xs text-secondary">{(slice.percentage * 100).toFixed(1)}% of category revenue</p>
+                    <p className="font-semibold text-on-surface text-sm">{slice.name}</p>
+                    <p className="text-[10px] text-secondary">{(slice.percentage * 100).toFixed(1)}% of revenue</p>
                   </div>
                 </div>
-                <p className="font-bold text-on-surface">{formatCurrency(slice.revenue)}</p>
+                <p className="font-bold text-on-surface text-sm shrink-0">{formatCurrency(slice.revenue)}</p>
               </div>
             ))}
           </div>
         </div>
       ) : (
-        <p className="text-sm text-secondary">No category sales found yet.</p>
+        <p className="text-sm text-secondary">No category sales for this period.</p>
       )}
     </div>
   );
 };
 
+/* ─────────────────────────────────────────────
+   Main Reports Page
+───────────────────────────────────────────── */
 const Reports = () => {
+  const today = new Date().toISOString().split('T')[0];
+  const sevenAgo = new Date(Date.now() - 6 * 864e5).toISOString().split('T')[0];
+
   const [dashboard, setDashboard] = useState(null);
-  const [trends, setTrends] = useState([]);
+  const [dateFrom, setDateFrom] = useState(sevenAgo);
+  const [dateTo, setDateTo] = useState(today);
+
+  // Date-filtered data
+  const [itemSales, setItemSales] = useState([]);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [dayWiseSummary, setDayWiseSummary] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  const [loadingStatic, setLoadingStatic] = useState(true);
+  const [loadingFiltered, setLoadingFiltered] = useState(false);
   const [loadError, setLoadError] = useState('');
 
+  // Load dashboard KPI cards once
   useEffect(() => {
-    const fetchReports = async () => {
-      try {
-        setLoadError('');
-        const results = await Promise.allSettled([
-          api.get('/reports/dashboard'),
-          api.get('/reports/sales-trend'),
-          api.get('/reports/top-products'),
-          api.get('/reports/top-categories')
-        ]);
-        const [dashboardRes, trendsRes, productsRes, categoriesRes] = results;
-
-        if (dashboardRes.status === 'fulfilled') setDashboard(dashboardRes.value.data);
-        if (trendsRes.status === 'fulfilled') setTrends(trendsRes.value.data || []);
-        if (productsRes.status === 'fulfilled') setProducts(productsRes.value.data || []);
-        if (categoriesRes.status === 'fulfilled') setCategories(categoriesRes.value.data || []);
-
-        const failedSections = results
-          .map((result, index) => ({ result, index }))
-          .filter(({ result }) => result.status === 'rejected')
-          .map(({ index }) => ['dashboard', 'sales trend', 'top products', 'top categories'][index]);
-
-        if (failedSections.length > 0) {
-          setLoadError(`Some analytics feeds could not load: ${failedSections.join(', ')}.`);
-        }
-      } catch (e) {
-        console.error(e);
-        setLoadError('Reports could not be loaded right now.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchReports();
+    api
+      .get('/reports/dashboard')
+      .then((r) => setDashboard(r.data))
+      .catch(() => setLoadError('Could not load dashboard stats.'))
+      .finally(() => setLoadingStatic(false));
   }, []);
 
-  const displayDayWiseSummary = useMemo(() => {
-    if (dayWiseSummary.length > 0) {
-      return dayWiseSummary;
+  // Load date-filtered data whenever dates change
+  const fetchFiltered = useCallback(async () => {
+    setLoadingFiltered(true);
+    setLoadError('');
+    try {
+      const params = { date_from: dateFrom, date_to: dateTo };
+      const [itemRes, prodRes, catRes] = await Promise.all([
+        api.get('/reports/item-sales', { params }),
+        api.get('/reports/top-products', { params }),
+        api.get('/reports/top-categories', { params }),
+      ]);
+      setItemSales(itemRes.data || []);
+      setProducts(prodRes.data || []);
+      setCategories(catRes.data || []);
+    } catch (e) {
+      setLoadError('Could not load filtered report data.');
+    } finally {
+      setLoadingFiltered(false);
     }
-    return trends.map((trend) => ({
-      ...trend,
-      label: formatDayLabel(trend.date),
-      customers: trend.customers || 0,
-    }));
-  }, [dayWiseSummary, trends]);
+  }, [dateFrom, dateTo]);
 
-  const bestDay = useMemo(() => {
-    if (!displayDayWiseSummary.length) return null;
-    return [...displayDayWiseSummary].sort((a, b) => b.revenue - a.revenue)[0];
-  }, [displayDayWiseSummary]);
+  useEffect(() => {
+    fetchFiltered();
+  }, [fetchFiltered]);
 
-  if (loading) {
+  if (loadingStatic) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-8 font-body">
+      {/* Header */}
       <div>
-        <h1 className="font-headline font-bold text-2xl text-on-surface">Reports & Analytics</h1>
-        <p className="text-secondary text-sm">Interactive revenue trends, top product performance, and category metrics.</p>
+        <h1 className="font-headline font-bold text-2xl text-on-surface">Reports &amp; Analytics</h1>
+        <p className="text-secondary text-sm mt-0.5">
+          Revenue trends, item performance, and category metrics — filtered by date range.
+        </p>
       </div>
 
       {loadError && (
@@ -173,150 +308,125 @@ const Reports = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-surface-container-low border border-outline/10 p-5 rounded-2xl flex items-center justify-between">
-          <div>
-            <p className="text-outline text-[10px] font-bold uppercase tracking-wider">All-Time Revenue</p>
-            <p className="font-headline text-2xl font-black text-on-surface mt-1">{formatCurrency(dashboard?.all_time_revenue)}</p>
+      {/* KPI Cards (all-time, not date filtered) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        {[
+          { label: 'All-Time Revenue', value: formatCurrency(dashboard?.all_time_revenue), Icon: DollarSign },
+          { label: 'All-Time Orders', value: dashboard?.all_time_orders ?? 0, Icon: ShoppingBag },
+        ].map(({ label, value, Icon }) => (
+          <div key={label} className="bg-surface-container-low border border-outline/10 p-5 rounded-2xl flex items-center justify-between">
+            <div>
+              <p className="text-outline text-[10px] font-bold uppercase tracking-wider">{label}</p>
+              <p className="font-headline text-2xl font-black text-on-surface mt-1">{value}</p>
+            </div>
+            <div className="p-3 bg-primary/5 text-primary rounded-full">
+              <Icon size={20} />
+            </div>
           </div>
-          <div className="p-3 bg-primary/5 text-primary rounded-full">
-            <DollarSign size={20} />
-          </div>
-        </div>
-
-        <div className="bg-surface-container-low border border-outline/10 p-5 rounded-2xl flex items-center justify-between">
-          <div>
-            <p className="text-outline text-[10px] font-bold uppercase tracking-wider">All-Time Orders</p>
-            <p className="font-headline text-2xl font-black text-on-surface mt-1">{dashboard?.all_time_orders ?? 0}</p>
-          </div>
-          <div className="p-3 bg-primary/5 text-primary rounded-full">
-            <ShoppingBag size={20} />
-          </div>
-        </div>
-
-        <div className="bg-surface-container-low border border-outline/10 p-5 rounded-2xl flex items-center justify-between">
-          <div>
-            <p className="text-outline text-[10px] font-bold uppercase tracking-wider">Avg Order Value</p>
-            <p className="font-headline text-2xl font-black text-on-surface mt-1">{formatCurrency(dashboard?.avg_order_value)}</p>
-          </div>
-          <div className="p-3 bg-primary/5 text-primary rounded-full">
-            <TrendingUp size={20} />
-          </div>
-        </div>
-
-        <div className="bg-surface-container-low border border-outline/10 p-5 rounded-2xl flex items-center justify-between">
-          <div>
-            <p className="text-outline text-[10px] font-bold uppercase tracking-wider">Month Revenue</p>
-            <p className="font-headline text-2xl font-black text-on-surface mt-1">{formatCurrency(dashboard?.month_revenue)}</p>
-          </div>
-          <div className="p-3 bg-primary/5 text-primary rounded-full">
-            <DollarSign size={20} />
-          </div>
-        </div>
+        ))}
       </div>
 
+      {/* ── Date Range Filter ── */}
+      <div className="flex flex-col sm:flex-row sm:items-end gap-4 p-5 bg-surface-container-low border border-outline/10 rounded-2xl">
+        <div className="flex items-center gap-2 text-primary font-bold text-sm">
+          <Calendar size={18} />
+          Date Filter
+        </div>
+        <div className="flex flex-wrap gap-4 flex-1">
+          <div>
+            <label className="block text-[10px] font-bold uppercase text-secondary mb-1">From</label>
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="px-3 py-2 bg-surface border border-outline/10 rounded-xl text-sm outline-none focus:border-primary/40"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold uppercase text-secondary mb-1">To</label>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom}
+              max={today}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="px-3 py-2 bg-surface border border-outline/10 rounded-xl text-sm outline-none focus:border-primary/40"
+            />
+          </div>
+        </div>
+        <p className="text-[11px] text-secondary">
+          Showing data from <strong>{dateFrom}</strong> to <strong>{dateTo}</strong>
+        </p>
+        {loadingFiltered && (
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+        )}
+      </div>
+
+      {/* ── Bar Chart: All Items Revenue & Sales ── */}
       <div className="bg-surface-container-low border border-outline/10 p-6 rounded-2xl space-y-4">
-        <div className="flex items-center gap-2">
-          <Users size={18} className="text-primary" />
-          <h3 className="font-headline font-bold text-sm text-on-surface">Statistics Table</h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart2 size={18} className="text-primary" />
+            <div>
+              <h3 className="font-headline font-bold text-sm text-on-surface">Item Revenue &amp; Sales Volume</h3>
+              <p className="text-[10px] text-secondary mt-0.5">Hover over bars for details · Sorted by revenue</p>
+            </div>
+          </div>
+          <span className="text-[10px] bg-primary/10 text-primary font-bold px-2.5 py-1 rounded-full">
+            {itemSales.length} items
+          </span>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-outline/10 text-outline text-xs uppercase tracking-wider">
-                <th className="py-3 pr-4 font-bold">Date</th>
-                <th className="py-3 pr-4 font-bold">Revenue</th>
-                <th className="py-3 pr-4 font-bold">Orders</th>
-                <th className="py-3 font-bold">Customers</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayDayWiseSummary.map((day) => (
-                <tr key={`stats-${day.date}`} className="border-b border-outline/10 text-sm last:border-0">
-                  <td className="py-3 pr-4 text-secondary">{day.label || day.date}</td>
-                  <td className="py-3 pr-4 font-semibold text-on-surface">{formatCurrency(day.revenue)}</td>
-                  <td className="py-3 pr-4 text-secondary">{day.orders}</td>
-                  <td className="py-3 text-secondary">{day.customers}</td>
-                </tr>
-              ))}
-              {displayDayWiseSummary.length === 0 && (
-                <tr>
-                  <td colSpan="4" className="py-4 text-sm text-secondary">No statistical summary available yet.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <BarChart data={itemSales} />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
+      {/* ── Top 5 + Pie Chart (side by side) ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Top 5 Best Selling */}
         <div className="bg-surface-container-low border border-outline/10 p-6 rounded-2xl space-y-4">
-          <h3 className="font-headline font-bold text-sm text-on-surface border-b border-outline/5 pb-2">Past 7 Days Sales Trend</h3>
+          <h3 className="font-headline font-bold text-sm text-on-surface border-b border-outline/5 pb-2">
+            Top 5 Best Selling Products
+          </h3>
           <div className="space-y-3">
-            {trends.map((t) => (
-              <div key={t.date} className="flex justify-between items-center text-sm border-b border-outline/5 pb-2 last:border-0 last:pb-0">
-                <div>
-                  <span className="text-secondary">{t.date}</span>
-                  <p className="text-xs text-outline mt-1">{t.customers || 0} customers</p>
+            {products.map((p, idx) => {
+              const maxQty = products[0]?.quantity || 1;
+              const barPct = Math.round((p.quantity / maxQty) * 100);
+              return (
+                <div key={p.name} className="space-y-1">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="font-semibold text-on-surface flex items-center gap-2">
+                      <span className="text-xs bg-primary/10 text-primary w-5 h-5 flex items-center justify-center rounded-full font-bold shrink-0">
+                        {idx + 1}
+                      </span>
+                      {p.name}
+                    </span>
+                    <div className="text-right shrink-0 ml-2">
+                      <span className="font-bold text-on-surface text-xs">{formatCurrency(p.revenue)}</span>
+                      <span className="text-outline text-[10px] ml-2">{p.quantity} units</span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary/70 rounded-full transition-all duration-500"
+                      style={{ width: `${barPct}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="space-x-4">
-                  <span className="text-outline text-xs">{t.orders} orders</span>
-                  <span className="font-bold text-on-surface">{formatCurrency(t.revenue)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-surface-container-low border border-outline/10 p-6 rounded-2xl space-y-4">
-          <h3 className="font-headline font-bold text-sm text-on-surface border-b border-outline/5 pb-2">Today Snapshot</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-secondary">Revenue today</span>
-              <span className="font-bold text-on-surface">{formatCurrency(dashboard?.today_revenue)}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-secondary">Paid orders today</span>
-              <span className="font-bold text-on-surface">{dashboard?.today_orders ?? 0}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-secondary">Customers today</span>
-              <span className="font-bold text-on-surface">{dashboard?.today_customers ?? 0}</span>
-            </div>
-            {bestDay && (
-              <div className="rounded-xl border border-primary/10 bg-primary/5 p-4 mt-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-primary">Best day this week</p>
-                <p className="font-semibold text-on-surface mt-1">{bestDay.label}</p>
-                <p className="text-sm text-secondary mt-1">
-                  {formatCurrency(bestDay.revenue)} from {bestDay.orders} orders and {bestDay.customers} customers.
-                </p>
-              </div>
+              );
+            })}
+            {products.length === 0 && (
+              <p className="text-xs text-outline italic">No sales in this period.</p>
             )}
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-6">
+        {/* Category Revenue Mix */}
         <div className="bg-surface-container-low border border-outline/10 p-6 rounded-2xl space-y-4">
-          <h3 className="font-headline font-bold text-sm text-on-surface border-b border-outline/5 pb-2">Top 5 Best Selling Products</h3>
-          <div className="space-y-3">
-            {products.map((p, idx) => (
-              <div key={p.name} className="flex justify-between items-center text-sm border-b border-outline/5 pb-2 last:border-0 last:pb-0">
-                <span className="font-semibold text-on-surface flex items-center gap-2">
-                  <span className="text-xs bg-primary/10 text-primary w-5 h-5 flex items-center justify-center rounded-full font-bold">{idx + 1}</span>
-                  {p.name}
-                </span>
-                <div className="space-x-4">
-                  <span className="text-outline text-xs">{p.quantity} units</span>
-                  <span className="font-bold text-on-surface">{formatCurrency(p.revenue)}</span>
-                </div>
-              </div>
-            ))}
-            {products.length === 0 && <p className="text-xs text-outline italic">No order sales found yet.</p>}
-          </div>
+          <h3 className="font-headline font-bold text-sm text-on-surface border-b border-outline/5 pb-2">
+            Category Revenue Mix
+          </h3>
+          <PieChartCard data={categories} />
         </div>
-
-        <PieChartCard data={categories} />
       </div>
     </div>
   );
