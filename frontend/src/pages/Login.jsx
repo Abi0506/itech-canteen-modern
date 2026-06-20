@@ -81,6 +81,8 @@ const Login = () => {
                   className="w-full pl-12 pr-5 py-4 bg-surface-container-low border-2 border-outline/20 rounded-xl focus:outline-none focus:border-primary transition-all text-on-surface placeholder:text-outline/40"
                   id="login-email"
                   type="email"
+                  pattern=".*@.*"
+                  title="Please include an '@' in the email address."
                   autoComplete="email"
                   placeholder="Enter your email"
                   value={email}

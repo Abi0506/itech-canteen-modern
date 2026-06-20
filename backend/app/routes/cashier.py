@@ -435,6 +435,15 @@ def _finalize_order_payment(
     }
 
 
+def _get_razorpay_client() -> razorpay.Client:
+    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+        raise HTTPException(
+            status_code=503,
+            detail="Razorpay sandbox is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.",
+        )
+    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+
 def _create_razorpay_checkout_order(
     db: Session,
     *,
@@ -518,7 +527,15 @@ def release_table(table_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Table not found")
 
     active_orders = _get_active_table_orders(db, table_id)
-    if active_orders:
+    real_active = []
+    for order in active_orders:
+        if order.status == "draft" and len(order.items) == 0:
+            order.status = "cancelled"
+        else:
+            real_active.append(order)
+    db.commit()
+
+    if real_active:
         raise HTTPException(status_code=400, detail="Settle all drafts for this table before releasing it.")
 
     table_session = (
@@ -781,7 +798,7 @@ def get_current_table_order(
     if order is None:
         order = (
             db.query(Order)
-            .filter(Order.table_id == table_id, Order.status.in_(["draft", "sent_to_kitchen", "paid"]))
+            .filter(Order.table_id == table_id, Order.status.in_(["draft", "sent_to_kitchen"]))
             .order_by(Order.created_at.desc())
             .first()
         )

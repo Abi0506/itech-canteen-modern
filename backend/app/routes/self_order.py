@@ -2,8 +2,10 @@ from decimal import Decimal
 from datetime import date, datetime
 import random
 import re
+import razorpay
 
 from fastapi import APIRouter, Depends, HTTPException
+from app.core.config import settings
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import or_
 
@@ -32,6 +34,15 @@ from app.db.models import LoyaltyCredit
 router = APIRouter(prefix="/self-order", tags=["self_order"])
 
 TAX_RATE = Decimal("0.05")
+
+def _get_razorpay_client() -> razorpay.Client:
+    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+        raise HTTPException(
+            status_code=503,
+            detail="Razorpay sandbox is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.",
+        )
+    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
 
 
 def _generate_order_number(db: Session) -> str:
@@ -705,6 +716,30 @@ async def pay_order(order_id: int, payload: dict, db: Session = Depends(get_db))
     if not receiver:
         raise HTTPException(status_code=400, detail="No active cashier or admin user is available to receive payment")
 
+    if payment_type == "upi":
+        client = _get_razorpay_client()
+        amount_paise = int((Decimal(str(order.total)) * Decimal("100")).to_integral_value())
+        razorpay_order = client.order.create(
+            {
+                "amount": amount_paise,
+                "currency": "INR",
+                "receipt": order.order_number,
+                "payment_capture": 1,
+            }
+        )
+        return {
+            "success": True,
+            "payment_provider": "razorpay",
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "razorpay_order_id": razorpay_order["id"],
+            "amount": float(order.total),
+            "amount_paise": amount_paise,
+            "currency": "INR",
+            "key_id": settings.RAZORPAY_KEY_ID,
+            "payment_method_id": method.id,
+        }
+
     db.add(
         Payment(
             order_id=order.id,
@@ -732,6 +767,83 @@ async def pay_order(order_id: int, payload: dict, db: Session = Depends(get_db))
             table.current_waiter_id = None
 
     # Award loyalty points based on order total
+    loyalty_points_awarded = 0
+    if order.customer_id:
+        loyalty_points_awarded = award_loyalty_points(db, order.customer_id, order.id, float(order.total))
+
+    db.commit()
+    db.refresh(order)
+    serialized = _serialize_order(db, order)
+    serialized["loyalty_points_awarded"] = loyalty_points_awarded
+    await manager.broadcast_all({
+        "event": "payment_completed",
+        "table_id": order.table_id,
+        "order_id": order.id,
+        "table_status": "available",
+    })
+    return serialized
+
+import hmac
+import hashlib
+
+@router.post("/orders/{order_id}/razorpay/verify")
+async def verify_razorpay_payment(order_id: int, payload: dict, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    razorpay_order_id = payload.get("razorpay_order_id")
+    razorpay_payment_id = payload.get("razorpay_payment_id")
+    razorpay_signature = payload.get("razorpay_signature")
+
+    if not all([razorpay_order_id, razorpay_payment_id, razorpay_signature]):
+        raise HTTPException(status_code=400, detail="Missing Razorpay verification details")
+
+    secret = settings.RAZORPAY_KEY_SECRET
+    msg = f"{razorpay_order_id}|{razorpay_payment_id}"
+    generated_signature = hmac.new(
+        secret.encode(),
+        msg.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+    if generated_signature != razorpay_signature:
+        raise HTTPException(status_code=400, detail="Invalid Razorpay signature")
+
+    method = db.query(PaymentMethod).filter(PaymentMethod.type == "upi", PaymentMethod.is_enabled == True).first()
+    if not method:
+        raise HTTPException(status_code=400, detail="UPI payment method unavailable")
+
+    receiver = db.query(User).filter(User.role_id.in_([1, 2]), User.is_active == True).order_by(User.id.asc()).first()
+    if not receiver:
+        raise HTTPException(status_code=400, detail="No active cashier or admin user is available to receive payment")
+
+    db.add(
+        Payment(
+            order_id=order.id,
+            payment_method_id=method.id,
+            amount=order.total,
+            amount_received=order.total,
+            change_due=Decimal("0.00"),
+            reference_code=razorpay_payment_id,
+            status="completed",
+            received_by=receiver.id,
+        )
+    )
+
+    order.status = "paid"
+    if order.table_session_id:
+        session = db.query(TableSession).filter(TableSession.id == order.table_session_id).first()
+        if session:
+            session.status = "closed"
+            session.closed_at = datetime.utcnow()
+    if order.table_id:
+        table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
+        if table:
+            table.current_status = "available"
+            table.current_order_id = None
+            table.current_waiter_id = None
+
     loyalty_points_awarded = 0
     if order.customer_id:
         loyalty_points_awarded = award_loyalty_points(db, order.customer_id, order.id, float(order.total))
