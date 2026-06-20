@@ -17,12 +17,22 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login-form-compatibility")
 
+ROLE_HOME_PATHS = {
+    "superadmin": "/admin/dashboard",
+    "admin": "/admin/dashboard",
+    "inventory_manager": "/admin/items",
+    "cashier": "/cashier/billing",
+    "chef": "/kitchen",
+    "customer": "/dashboard",
+    "user": "/dashboard",
+    "dept": "/dashboard",
+    "external": "/dashboard",
+}
+
 def validate_email_domain(email: str) -> bool:
-    allowed_domains = ["gmail.com", "psgitech.ac.in", "psgiap.ac.in", "psgtech.ac.in"]
     if "@" not in email:
         return False
-    domain = email.split("@")[-1].lower()
-    return domain in allowed_domains
+    return True
 
 def is_valid_phone(phone: str) -> bool:
     cleaned = re.sub(r"\D+", "", phone)
@@ -32,6 +42,7 @@ def _build_user_response(user: User) -> UserResponse:
     return UserResponse(
         id=user.id,
         roll_no=user.roll_no,
+        display_name=user.display_name,
         email=user.email,
         phone_no=user.phone_no,
         role=user.role,
@@ -40,8 +51,13 @@ def _build_user_response(user: User) -> UserResponse:
         email_verified=user.email_verified,
         favourites=user.favourites or [],
         bulk_order_enabled=user.bulk_order_enabled,
+        loyalty_points=user.loyalty_points or 0,
         created_at=user.created_at,
     )
+
+
+def _landing_path_for_role(role: str) -> str:
+    return ROLE_HOME_PATHS.get(role, "/dashboard")
 
 @router.post("/register", response_model=UserResponse)
 def register(user_in: UserRegister, db: Session = Depends(get_db)):
@@ -49,9 +65,9 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
     if not is_valid_phone(user_in.phone_no):
         raise HTTPException(status_code=400, detail="Please enter a valid 10-digit phone number.")
         
-    # Validate email domain
+    # Validate email format
     if not validate_email_domain(user_in.email):
-        raise HTTPException(status_code=400, detail="Only PSG-ITECH, PSG-IAP and PSG-TECH email addresses are allowed.")
+        raise HTTPException(status_code=400, detail="Please enter a valid email address.")
 
     # Check duplicate
     existing_user = db.query(User).filter(
@@ -70,7 +86,7 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
 
     hashed_pw = get_password_hash(user_in.password)
     
-    bulk_enabled = True if user_in.user_type == "faculty" else False
+    bulk_enabled = False
     
     new_user = User(
         roll_no=user_in.roll_no,
@@ -113,7 +129,8 @@ def login(login_in: UserLogin, db: Session = Depends(get_db)):
             access_token=token,
             token_type="bearer",
             role=user.role,
-            roll_no=user.roll_no
+            roll_no=user.roll_no,
+            landing_path=_landing_path_for_role(user.role),
         )
 
     # 2. Try logging in as Department
@@ -130,7 +147,8 @@ def login(login_in: UserLogin, db: Session = Depends(get_db)):
             access_token=token,
             token_type="bearer",
             role="dept",
-            roll_no=dept.dept_name
+            roll_no=dept.dept_name,
+            landing_path=_landing_path_for_role("dept"),
         )
         
     raise HTTPException(status_code=400, detail="This user does not exist.")
@@ -197,6 +215,7 @@ def google_login(payload: GoogleLoginPayload, db: Session = Depends(get_db)):
         token_type="bearer",
         role=user.role,
         roll_no=user.roll_no,
+        landing_path=_landing_path_for_role(user.role),
     )
 
 # Dependency to fetch current user

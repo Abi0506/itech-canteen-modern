@@ -5,6 +5,7 @@ from decimal import Decimal
 from datetime import datetime, date
 import random
 import json
+from typing import List
 
 from app.db.session import get_db
 from app.db.models import User, Category, FoodItem, Order, OrderItem, Idea, IdeaUpvote, WalletTransaction
@@ -19,6 +20,7 @@ def get_profile(current_user: User = Depends(get_current_user)):
     return UserResponse(
         id=current_user.id,
         roll_no=current_user.roll_no,
+        display_name=current_user.display_name,
         email=current_user.email,
         phone_no=current_user.phone_no,
         role=current_user.role,
@@ -27,6 +29,7 @@ def get_profile(current_user: User = Depends(get_current_user)):
         email_verified=current_user.email_verified,
         favourites=current_user.favourites or [],
         bulk_order_enabled=current_user.bulk_order_enabled,
+        loyalty_points=current_user.loyalty_points or 0,
         created_at=current_user.created_at
     )
 

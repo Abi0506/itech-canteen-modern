@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 import { Search, IndianRupee, CreditCard, Wallet, PlusCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
 const Dashboard = () => {
@@ -10,6 +11,8 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const { user } = useAuth();
+  const canRechargeWallet = ['admin', 'superadmin'].includes(user?.role);
 
   const fetchStats = async () => {
     try {
@@ -65,7 +68,7 @@ const Dashboard = () => {
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-8 font-body">
       <div>
         <h1 className="font-headline font-bold text-2xl text-on-surface">Cashier Dashboard</h1>
-        <p className="text-secondary text-sm">Review today's transactions and recharge student wallets.</p>
+        <p className="text-secondary text-sm">Review today's service transactions and payment controls.</p>
       </div>
 
       {/* Daily Stats Grid */}
@@ -121,22 +124,30 @@ const Dashboard = () => {
             <PlusCircle className="text-primary" size={20} />
             Wallet Recharge Desk
           </h3>
-          <p className="text-secondary text-xs">Verify student identity and deposit cash to add credits.</p>
+          <p className="text-secondary text-xs">Look up a customer or staff identifier and add credits when needed.</p>
 
-          {error && (
+          {!canRechargeWallet && (
+            <div className="flex items-start gap-2 p-3 bg-surface-container-lowest border border-outline/10 rounded-xl text-secondary text-xs">
+              <span className="material-symbols-outlined text-sm">info</span>
+              <span>Recharge controls are reserved for superadmin access.</span>
+            </div>
+          )}
+
+          {canRechargeWallet && error && (
             <div className="flex items-start gap-2 p-3 bg-error-container/20 border border-error/10 rounded-xl text-error text-xs">
               <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
-          {success && (
+          {canRechargeWallet && success && (
             <div className="flex items-start gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-600 text-xs">
               <span className="material-symbols-outlined text-sm">check_circle</span>
               <span>{success}</span>
             </div>
           )}
 
+          {canRechargeWallet && (
           <form onSubmit={handleSearch} className="space-y-3">
             <div className="relative">
               <input
@@ -152,8 +163,9 @@ const Dashboard = () => {
               </button>
             </div>
           </form>
+          )}
 
-          {foundUser && (
+          {canRechargeWallet && foundUser && (
             <div className="border border-outline/10 p-4 rounded-xl space-y-3 bg-surface-container-lowest">
               <div className="text-xs">
                 <p className="font-bold text-on-surface uppercase">{foundUser.roll_no}</p>

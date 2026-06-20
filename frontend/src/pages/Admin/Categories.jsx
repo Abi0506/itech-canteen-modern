@@ -59,7 +59,7 @@ const Categories = () => {
       <div className="md:col-span-2 space-y-6">
         <div>
           <h1 className="font-headline font-bold text-2xl text-on-surface">Categories</h1>
-          <p className="text-secondary text-sm">Control active and inactive menu categories.</p>
+          <p className="text-secondary text-sm">Control active and inactive restaurant menu categories.</p>
         </div>
 
         <div className="bg-surface-container-low border border-outline/10 rounded-2xl overflow-hidden divide-y divide-outline/10 shadow-sm">
@@ -87,7 +87,7 @@ const Categories = () => {
       <div>
         <div className="bg-surface-container-low border border-outline/10 p-6 rounded-2xl space-y-4">
           <h3 className="font-headline font-bold text-sm text-on-surface">Add Menu Category</h3>
-          <p className="text-secondary text-xs">Register new category grouping for cafeteria food items.</p>
+          <p className="text-secondary text-xs">Register new category grouping for menu items.</p>
 
           {error && (
             <div className="flex items-start gap-2 p-3 bg-error-container/20 border border-error/10 rounded-xl text-error text-xs">

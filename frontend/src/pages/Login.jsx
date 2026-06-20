@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { getGoogleCredential } from '../utils/googleAuth';
+import { getLandingPath } from '../utils/roleRouting';
 
 const Login = () => {
   const { login, loginWithGoogle } = useAuth();
@@ -19,16 +20,8 @@ const Login = () => {
     setError('');
     setSuccess('');
     try {
-      const role = await login(rollNo, password);
-      if (role === 'admin') {
-        navigate('/admin/dashboard');
-      } else if (role === 'cashier') {
-        navigate('/cashier/dashboard');
-      } else if (role === 'dept') {
-        navigate('/dashboard'); // or dept checkout
-      } else {
-        navigate('/dashboard');
-      }
+      const authResult = await login(rollNo, password);
+      navigate(authResult.landing_path || getLandingPath(authResult.role));
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed. Please verify credentials.');
     }
@@ -40,14 +33,8 @@ const Login = () => {
     setGoogleLoading(true);
     try {
       const credential = await getGoogleCredential();
-      const role = await loginWithGoogle(credential);
-      if (role === 'admin') {
-        navigate('/admin/dashboard');
-      } else if (role === 'cashier') {
-        navigate('/cashier/dashboard');
-      } else {
-        navigate('/dashboard');
-      }
+      const authResult = await loginWithGoogle(credential);
+      navigate(authResult.landing_path || getLandingPath(authResult.role));
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Google sign-in failed.');
     } finally {
@@ -78,7 +65,7 @@ const Login = () => {
       <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative overflow-hidden bg-surface-container-high">
         <img
           crossOrigin="anonymous"
-          alt="Campus canteen with fresh food"
+          alt="Restaurant with fresh food"
           className="absolute inset-0 w-full h-full object-cover gentle-float"
           src="https://ik.imagekit.io/iendzfwgs/canteen_items/marios-gkortsilas-kbqXzS60oZ0-unsplash.jpg"
           loading="eager"
@@ -88,9 +75,9 @@ const Login = () => {
         {/* Text overlay */}
         <div className="absolute bottom-16 left-12 right-12 text-white z-10">
           <p className="font-headline text-4xl xl:text-5xl leading-snug mb-4">
-            "Good food is the foundation<br />of genuine happiness."
+            "Good service starts with<br />a clean login."
           </p>
-          <p className="font-body text-sm uppercase tracking-[0.2em] opacity-70">PSG iTech Campus Dining</p>
+          <p className="font-body text-sm uppercase tracking-[0.2em] opacity-70">Odoo Cafe</p>
         </div>
       </div>
 
@@ -104,10 +91,10 @@ const Login = () => {
               <span className="material-symbols-outlined text-primary text-6xl">restaurant_menu</span>
             </div>
             <h1 className="hidden md:block font-headline text-xl md:text-2xl tracking-tight text-primary uppercase font-bold">
-              psg institute of technology and applied research
+              Odoo Cafe
             </h1>
-            <h1 className="md:hidden font-headline text-3xl tracking-tight text-primary font-bold">iTech Canteen</h1>
-            <p className="font-body text-secondary text-sm tracking-wide uppercase">Canteen System</p>
+            <h1 className="md:hidden font-headline text-3xl tracking-tight text-primary font-bold">Odoo Cafe</h1>
+            <p className="font-body text-secondary text-sm tracking-wide uppercase">Shared Staff Login</p>
           </div>
 
           {/* Error message Toast */}
@@ -123,7 +110,7 @@ const Login = () => {
             {/* Username/Roll Number */}
             <div className="space-y-2">
               <label className="block text-xs font-semibold tracking-widest uppercase text-on-surface-variant ml-1" htmlFor="roll_no">
-                Roll Number or Email
+                Username or Email
               </label>
               <div className="relative">
                 <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline/50">badge</span>
@@ -131,7 +118,7 @@ const Login = () => {
                   className="w-full pl-12 pr-5 py-4 bg-surface-container-low border-2 border-transparent rounded-lg focus:ring-0 focus:border-primary/30 focus:bg-surface-container-highest transition-all duration-300 placeholder:text-outline/40 text-on-surface hover:bg-surface-container-high"
                   id="roll_no"
                   type="text"
-                  placeholder="e.g. 22IT001 or name@psgitech.ac.in"
+                  placeholder="e.g. superadmin or name@restaurant.com"
                   value={rollNo}
                   onChange={(e) => setRollNo(e.target.value)}
                   required
@@ -200,9 +187,9 @@ const Login = () => {
           {/* Register link */}
           <footer className="text-center pt-2">
             <p className="text-secondary text-sm">
-              Don't have an account?
+              Need access?
               <Link className="font-bold text-primary ml-1 hover:underline underline-offset-4 decoration-primary-container" to="/register">
-                Register here
+                Request account setup
               </Link>
             </p>
           </footer>

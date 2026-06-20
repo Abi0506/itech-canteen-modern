@@ -1,49 +1,14 @@
--- iTech Canteen System MySQL Schema
+-- iTech Canteen schema aligned to the live SQLAlchemy models
 
--- 1. Categories Table
 CREATE TABLE categories (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE,
+    color VARCHAR(20) NOT NULL DEFAULT '#F59E0B',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- 2. Category Timings Table
-CREATE TABLE category_timings (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    category_id INTEGER REFERENCES categories(id) ON DELETE CASCADE,
-    start_time TIME NOT NULL,
-    end_time TIME NOT NULL,
-    is_available BOOLEAN DEFAULT TRUE
-);
-
--- 3. Users Table
-CREATE TABLE users (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    roll_no VARCHAR(50) NOT NULL UNIQUE,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    phone_no VARCHAR(20),
-    password VARCHAR(255) NOT NULL,
-    role VARCHAR(20) DEFAULT 'user', -- 'user', 'cashier', 'admin', 'dept'
-    user_type VARCHAR(20) DEFAULT 'student', -- 'student', 'faculty', 'external'
-    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
-    email_verify_token VARCHAR(64),
-    wallet_balance VARCHAR(255), -- AES encrypted string
-    favourites JSON, -- array of food_item_ids
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    reset_code VARCHAR(10),
-    reset_code_expiry DATETIME,
-    group_deleted_notification BOOLEAN DEFAULT FALSE,
-    group_order_success_notification BOOLEAN DEFAULT FALSE,
-    action_otp VARCHAR(10),
-    action_otp_expiry DATETIME,
-    deleted_at DATETIME,
-    bulk_order_enabled BOOLEAN DEFAULT FALSE
-);
-
--- 4. Departments Table
 CREATE TABLE departments (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     dept_name VARCHAR(100) NOT NULL UNIQUE,
@@ -51,279 +16,262 @@ CREATE TABLE departments (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- 5. Food Items Table
+CREATE TABLE users (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    roll_no VARCHAR(50) NOT NULL UNIQUE,
+    display_name VARCHAR(100),
+    email VARCHAR(100) NOT NULL UNIQUE,
+    phone_no VARCHAR(20),
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'user',
+    user_type VARCHAR(20) NOT NULL DEFAULT 'student',
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    wallet_balance VARCHAR(255),
+    favourites JSON,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at DATETIME,
+    bulk_order_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    loyalty_points INT NOT NULL DEFAULT 0
+);
+
 CREATE TABLE food_items (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+    category_id INT NULL,
     name VARCHAR(100) NOT NULL,
     description TEXT,
     price DECIMAL(10, 2) NOT NULL,
     cash_price DECIMAL(10, 2),
+    unit_of_measure VARCHAR(30) DEFAULT 'piece',
+    tax_rate DECIMAL(5, 2) DEFAULT 0.00,
     image VARCHAR(255),
-    quantity_available INTEGER NOT NULL DEFAULT 0,
+    quantity_available INT NOT NULL DEFAULT 0,
+    reserved_quantity INT NOT NULL DEFAULT 0,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     last_stock_update DATETIME,
+    last_reserved_at DATETIME,
     perishable BOOLEAN NOT NULL DEFAULT FALSE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_food_items_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 );
 
--- 6. Group Carts Table
-CREATE TABLE group_carts (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    creator_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    join_code VARCHAR(10) NOT NULL UNIQUE,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME
-);
-
--- 7. Group Cart Members Table
-CREATE TABLE group_cart_members (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    group_cart_id INTEGER NOT NULL REFERENCES group_carts(id) ON DELETE CASCADE,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(group_cart_id, user_id)
-);
-
--- 8. Group Cart Items Table
-CREATE TABLE group_cart_items (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    group_cart_id INTEGER NOT NULL REFERENCES group_carts(id) ON DELETE CASCADE,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    food_item_id INTEGER NOT NULL REFERENCES food_items(id) ON DELETE CASCADE,
-    quantity INTEGER NOT NULL DEFAULT 1,
-    added_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- 9. Orders Table
-CREATE TABLE orders (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    bill_number VARCHAR(50) NOT NULL UNIQUE,
-    total_amount DECIMAL(10, 2) NOT NULL,
-    items JSON, -- JSON breakdown of purchased items
-    payment_method VARCHAR(20) NOT NULL, -- 'wallet', 'razorpay', 'partial', 'cash', 'upi'
-    payment_status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'completed', 'failed', 'refunded'
-    is_scanned BOOLEAN DEFAULT FALSE,
-    razorpay_order_id VARCHAR(100),
-    razorpay_payment_id VARCHAR(100),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    is_group_order BOOLEAN NOT NULL DEFAULT FALSE,
-    group_cart_id INTEGER REFERENCES group_carts(id) ON DELETE SET NULL,
-    wallet_amount DECIMAL(10, 2) DEFAULT 0.00,
-    online_amount DECIMAL(10, 2) DEFAULT 0.00,
-);
-
--- 10. Order Items Table
-CREATE TABLE order_items (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    food_item_id INTEGER NOT NULL REFERENCES food_items(id) ON DELETE CASCADE,
-    quantity INTEGER NOT NULL,
-    price DECIMAL(10, 2) NOT NULL
-);
-
--- 11. Refunds Table
-CREATE TABLE refunds (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    amount DECIMAL(10, 2) NOT NULL,
-    reason VARCHAR(255),
-    stock_restored BOOLEAN NOT NULL DEFAULT FALSE,
-    performed_by INTEGER NOT NULL REFERENCES users(id),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- 12. Audit Logs Table
 CREATE TABLE audit_logs (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    user_id INT NULL,
     action VARCHAR(100) NOT NULL,
     table_name VARCHAR(50),
-    row_id INTEGER,
+    row_id INT,
     before_state JSON,
     after_state JSON,
     meta JSON,
     ip_address VARCHAR(45),
     user_agent TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_audit_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- 13. Wallet Transactions Table
-CREATE TABLE wallet_transactions (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    transaction_type VARCHAR(20) NOT NULL, -- 'credit', 'debit'
-    amount DECIMAL(10, 2) NOT NULL,
-    description VARCHAR(255),
-    order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
-    performed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- 14. Stock Audit Logs Table
 CREATE TABLE stock_audit_logs (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    actor_id INT NULL,
     actor_roll_no VARCHAR(64),
     actor_role VARCHAR(32),
     action VARCHAR(32) NOT NULL,
-    food_item_id INTEGER NOT NULL REFERENCES food_items(id) ON DELETE CASCADE,
+    food_item_id INT NOT NULL,
     food_item_name VARCHAR(255),
-    before_quantity INTEGER,
-    after_quantity INTEGER,
-    change_amount INTEGER,
+    before_quantity INT,
+    after_quantity INT,
+    change_amount INT,
     source VARCHAR(32) DEFAULT 'cashier_stock_update',
     ip_address VARCHAR(45),
     user_agent TEXT,
     meta JSON,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_stock_audit_logs_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_stock_audit_logs_item FOREIGN KEY (food_item_id) REFERENCES food_items(id) ON DELETE CASCADE
 );
 
--- 15. Stock Notifications Table
-CREATE TABLE stock_notifications (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    item_id INTEGER NOT NULL REFERENCES food_items(id) ON DELETE CASCADE,
-    notification_type VARCHAR(50) DEFAULT 'stock_update',
-    is_read BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- 16. System Controls Table
 CREATE TABLE system_controls (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    sales_mode VARCHAR(20) NOT NULL DEFAULT 'closed', -- 'closed', 'open', 'emergency'
+    sales_mode VARCHAR(20) NOT NULL DEFAULT 'closed',
     sales_open_date DATE,
-    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_by INT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_system_controls_user FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- 17. Wastage Table
-CREATE TABLE wastage (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    item_id INTEGER NOT NULL REFERENCES food_items(id) ON DELETE CASCADE,
-    wastage_date DATE NOT NULL,
-    quantity_wasted INTEGER NOT NULL DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
--- 18. Ideas Table
 CREATE TABLE ideas (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INT NOT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
-    upvotes INTEGER DEFAULT 0,
-    status VARCHAR(30) DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    upvotes INT NOT NULL DEFAULT 0,
+    status VARCHAR(30) NOT NULL DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ideas_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 19. Idea Upvotes Table
 CREATE TABLE idea_upvotes (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    idea_id INTEGER NOT NULL REFERENCES ideas(id) ON DELETE CASCADE,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    idea_id INT NOT NULL,
+    user_id INT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(idea_id, user_id)
+    UNIQUE KEY uq_idea_upvotes_idea_user (idea_id, user_id),
+    CONSTRAINT fk_idea_upvotes_idea FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE,
+    CONSTRAINT fk_idea_upvotes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 20. Kiosk API Tokens Table
-CREATE TABLE kiosk_api_tokens (
+CREATE TABLE restaurant_floors (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    token_name VARCHAR(100) NOT NULL,
-    token_hash VARCHAR(255) NOT NULL UNIQUE,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME
-);
-
--- 21. Kiosk Audit Log Table
-CREATE TABLE kiosk_audit_log (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    kiosk_id VARCHAR(50) NOT NULL,
-    action VARCHAR(100) NOT NULL,
-    details TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- 22. Kiosk Auth Lockouts Table
-CREATE TABLE kiosk_auth_lockouts (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    identifier VARCHAR(100) NOT NULL,
-    failed_attempts INTEGER NOT NULL DEFAULT 0,
-    locked_until DATETIME,
-    last_attempt_at DATETIME,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    sort_order INT NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- 23. Closing Balance Table
-CREATE TABLE closing_balance (
+CREATE TABLE restaurant_tables (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    dates DATE DEFAULT CURRENT_DATE,
-    balance DECIMAL(12, 2) NOT NULL,
-    cashier_id INTEGER REFERENCES users(id) ON DELETE SET NULL
+    floor_id INT NOT NULL,
+    table_number VARCHAR(20) NOT NULL,
+    seats INT NOT NULL DEFAULT 2,
+    status VARCHAR(20) NOT NULL DEFAULT 'available',
+    active_cashier_id INT NULL,
+    active_order_id INT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_restaurant_tables_floor FOREIGN KEY (floor_id) REFERENCES restaurant_floors(id) ON DELETE CASCADE,
+    CONSTRAINT fk_restaurant_tables_cashier FOREIGN KEY (active_cashier_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- 24. Morning Balance Table
-CREATE TABLE morning_balance (
+CREATE TABLE payment_methods (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    dates DATE DEFAULT CURRENT_DATE,
-    balance DECIMAL(12, 2) NOT NULL,
-    cashier_id INTEGER REFERENCES users(id) ON DELETE SET NULL
-);
-
--- 25. Special Item Table
-CREATE TABLE special_item (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    food_name VARCHAR(100) NOT NULL,
+    method_key VARCHAR(30) NOT NULL UNIQUE,
+    label VARCHAR(50) NOT NULL,
+    is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    upi_id VARCHAR(100),
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- 26. Bulk Order Payment Log Table
-CREATE TABLE bulk_order_payment_log (
+CREATE TABLE coupons (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    department_id INTEGER NOT NULL, -- references departments or users if customized
-    amount DECIMAL(10, 2) NOT NULL,
-    logged_by INTEGER NOT NULL REFERENCES users(id),
-    payment_method VARCHAR(20) NOT NULL,
-    details TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- 27. Cashier Requests Table
-CREATE TABLE cashier_requests (
-    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    cashier_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    request_type VARCHAR(50) NOT NULL,
-    amount DECIMAL(10, 2),
-    status VARCHAR(20) DEFAULT 'pending',
+    code VARCHAR(50) NOT NULL UNIQUE,
+    discount_type VARCHAR(20) NOT NULL,
+    discount_value DECIMAL(10, 2) NOT NULL,
+    minimum_order_amount DECIMAL(10, 2) DEFAULT 0.00,
+    maximum_discount_amount DECIMAL(10, 2),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    starts_at DATETIME,
+    ends_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- 28. Faculty Bulk Requests Table
-CREATE TABLE faculty_bulk_requests (
+CREATE TABLE promotions (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    event_name VARCHAR(255) NOT NULL,
-    event_date DATE NOT NULL,
-    delivery_time TIME NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    target_type VARCHAR(20) NOT NULL,
+    target_id INT,
+    discount_type VARCHAR(20) NOT NULL,
+    discount_value DECIMAL(10, 2) NOT NULL,
+    minimum_quantity INT,
+    minimum_order_amount DECIMAL(10, 2),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    starts_at DATETIME,
+    ends_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE table_sessions (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    table_id INT NOT NULL,
+    customer_id INT NULL,
+    cashier_id INT NULL,
+    session_pin VARCHAR(4) NOT NULL,
+    session_token VARCHAR(64) NOT NULL UNIQUE,
+    status VARCHAR(20) NOT NULL DEFAULT 'active',
+    opened_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_active_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    closed_at DATETIME,
+    CONSTRAINT fk_table_sessions_table FOREIGN KEY (table_id) REFERENCES restaurant_tables(id) ON DELETE CASCADE,
+    CONSTRAINT fk_table_sessions_customer FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_table_sessions_cashier FOREIGN KEY (cashier_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE loyalty_accounts (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE,
+    total_points INT NOT NULL DEFAULT 0,
+    lifetime_spend DECIMAL(12, 2) DEFAULT 0.00,
+    tier VARCHAR(30) NOT NULL DEFAULT 'standard',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_loyalty_accounts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE orders (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    cashier_id INT NULL,
+    floor_id INT NULL,
+    table_id INT NULL,
+    session_id INT NULL,
+    bill_number VARCHAR(50) NOT NULL UNIQUE,
     total_amount DECIMAL(10, 2) NOT NULL,
-    status VARCHAR(20) DEFAULT 'pending',
+    subtotal_amount DECIMAL(10, 2) DEFAULT 0.00,
+    tax_amount DECIMAL(10, 2) DEFAULT 0.00,
+    discount_amount DECIMAL(10, 2) DEFAULT 0.00,
+    items JSON,
+    payment_method VARCHAR(20) NOT NULL,
+    payment_status VARCHAR(20) DEFAULT 'pending',
+    order_status VARCHAR(20) DEFAULT 'draft',
+    kitchen_status VARCHAR(20) DEFAULT 'to_cook',
+    is_scanned BOOLEAN DEFAULT FALSE,
+    razorpay_order_id VARCHAR(100),
+    razorpay_payment_id VARCHAR(100),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    wallet_amount DECIMAL(10, 2) DEFAULT 0.00,
+    online_amount DECIMAL(10, 2) DEFAULT 0.00,
+    coupon_code VARCHAR(50),
+    loyalty_points_earned INT NOT NULL DEFAULT 0,
+    closed_at DATETIME,
+    CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_orders_cashier FOREIGN KEY (cashier_id) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_orders_floor FOREIGN KEY (floor_id) REFERENCES restaurant_floors(id) ON DELETE SET NULL,
+    CONSTRAINT fk_orders_table FOREIGN KEY (table_id) REFERENCES restaurant_tables(id) ON DELETE SET NULL,
+    CONSTRAINT fk_orders_session FOREIGN KEY (session_id) REFERENCES table_sessions(id) ON DELETE SET NULL
 );
 
--- 29. Faculty Bulk Items Table
-CREATE TABLE faculty_bulk_items (
+CREATE TABLE order_items (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    request_id INTEGER NOT NULL REFERENCES faculty_bulk_requests(id) ON DELETE CASCADE,
-    food_item_id INTEGER NOT NULL REFERENCES food_items(id) ON DELETE CASCADE,
-    quantity INTEGER NOT NULL,
-    price DECIMAL(10, 2) NOT NULL
+    order_id INT NOT NULL,
+    food_item_id INT NOT NULL,
+    quantity INT NOT NULL,
+    price DECIMAL(10, 2) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    kitchen_status VARCHAR(20) DEFAULT 'to_cook',
+    assigned_chef_id INT NULL,
+    sent_to_kitchen_at DATETIME,
+    completed_at DATETIME,
+    CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    CONSTRAINT fk_order_items_food_item FOREIGN KEY (food_item_id) REFERENCES food_items(id) ON DELETE CASCADE,
+    CONSTRAINT fk_order_items_assignee FOREIGN KEY (assigned_chef_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE wallet_transactions (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    transaction_type VARCHAR(20) NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    description VARCHAR(255),
+    order_id INT NULL,
+    performed_by INT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_wallet_transactions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_wallet_transactions_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
+    CONSTRAINT fk_wallet_transactions_performed_by FOREIGN KEY (performed_by) REFERENCES users(id) ON DELETE SET NULL
 );

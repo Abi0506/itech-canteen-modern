@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserPlus, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { getGoogleCredential } from '../utils/googleAuth';
+import { getLandingPath } from '../utils/roleRouting';
 
 const Register = () => {
   const { register, loginWithGoogle } = useAuth();
@@ -11,7 +12,7 @@ const Register = () => {
   const [email, setEmail] = useState('');
   const [phoneNo, setPhoneNo] = useState('');
   const [password, setPassword] = useState('');
-  const [userType, setUserType] = useState('student');
+  const [userType, setUserType] = useState('customer');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -38,16 +39,10 @@ const Register = () => {
     setGoogleLoading(true);
     try {
       const credential = await getGoogleCredential();
-      const role = await loginWithGoogle(credential);
+      const authResult = await loginWithGoogle(credential);
       setSuccess('Google account connected successfully. Redirecting...');
       setTimeout(() => {
-        if (role === 'admin') {
-          navigate('/admin/dashboard');
-        } else if (role === 'cashier') {
-          navigate('/cashier/dashboard');
-        } else {
-          navigate('/dashboard');
-        }
+        navigate(authResult.landing_path || getLandingPath(authResult.role));
       }, 1200);
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Google sign-up failed.');
@@ -63,7 +58,7 @@ const Register = () => {
       <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative overflow-hidden bg-surface-container-high">
         <img
           crossOrigin="anonymous"
-          alt="Campus canteen with fresh food"
+          alt="Restaurant with fresh food"
           className="absolute inset-0 w-full h-full object-cover gentle-float"
           src="https://ik.imagekit.io/iendzfwgs/canteen_items/marios-gkortsilas-kbqXzS60oZ0-unsplash.jpg"
           loading="eager"
@@ -71,9 +66,9 @@ const Register = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
         <div className="absolute bottom-16 left-12 right-12 text-white z-10">
           <p className="font-headline text-4xl xl:text-5xl leading-snug mb-4">
-            "Join us for wholesome<br />campus meals daily."
+            "Create access for the<br />restaurant experience."
           </p>
-          <p className="font-body text-sm uppercase tracking-[0.2em] opacity-70">PSG iTech Campus Dining</p>
+          <p className="font-body text-sm uppercase tracking-[0.2em] opacity-70">Restaurant Access Portal</p>
         </div>
       </div>
 
@@ -83,7 +78,7 @@ const Register = () => {
         <div className="w-full max-w-md space-y-6 md:space-y-8 mt-6 mb-8 lg:my-auto">
           <div className="text-center space-y-4">
             <h1 className="font-headline text-3xl tracking-tight text-primary font-bold">Create Account</h1>
-            <p className="font-body text-secondary text-sm tracking-wide uppercase">Canteen System Portal</p>
+            <p className="font-body text-secondary text-sm tracking-wide uppercase">Customer or Staff Access</p>
           </div>
 
           {error && (
@@ -104,29 +99,29 @@ const Register = () => {
             {/* User Type Select */}
             <div className="space-y-1">
               <label className="block text-xs font-semibold tracking-widest uppercase text-on-surface-variant ml-1">
-                Account Type
+                Access Type
               </label>
               <select
                 className="w-full px-4 py-3 bg-surface-container-low border-2 border-transparent rounded-lg focus:ring-0 focus:border-primary/30 text-on-surface hover:bg-surface-container-high"
                 value={userType}
                 onChange={(e) => setUserType(e.target.value)}
               >
-                <option value="student">Student</option>
-                <option value="faculty">Faculty</option>
-                <option value="external">External / Staff</option>
+                <option value="customer">Customer</option>
+                <option value="external">Staff</option>
+                <option value="user">General User</option>
               </select>
             </div>
 
             {/* Roll Number */}
             <div className="space-y-1">
               <label className="block text-xs font-semibold tracking-widest uppercase text-on-surface-variant ml-1" htmlFor="roll_no">
-                Roll Number / ID
+                Username / ID
               </label>
               <input
                 className="w-full px-4 py-3 bg-surface-container-low border-2 border-transparent rounded-lg focus:ring-0 focus:border-primary/30 text-on-surface hover:bg-surface-container-high"
                 id="roll_no"
                 type="text"
-                placeholder="e.g. 22IT001 or WALKIN"
+                placeholder="e.g. cashier01 or customer01"
                 value={rollNo}
                 onChange={(e) => setRollNo(e.target.value)}
                 required

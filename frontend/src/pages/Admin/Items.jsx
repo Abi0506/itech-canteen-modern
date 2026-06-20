@@ -81,7 +81,7 @@ const Items = () => {
       <div className="lg:col-span-2 space-y-6">
         <div>
           <h1 className="font-headline font-bold text-2xl text-on-surface">Food Items</h1>
-          <p className="text-secondary text-sm">Review canteen menu pricing and stock listings.</p>
+          <p className="text-secondary text-sm">Review restaurant menu pricing and stock listings.</p>
         </div>
 
         <div className="bg-surface-container-low border border-outline/10 rounded-2xl overflow-hidden shadow-sm">
@@ -117,7 +117,7 @@ const Items = () => {
       {/* Add Item Form */}
       <div>
         <div className="bg-surface-container-low border border-outline/10 p-6 rounded-2xl space-y-4">
-          <h3 className="font-headline font-bold text-sm text-on-surface">Add Canteen Food Item</h3>
+          <h3 className="font-headline font-bold text-sm text-on-surface">Add Menu Item</h3>
 
           <form onSubmit={handleAddItem} className="space-y-3">
             <div className="space-y-1">
@@ -200,7 +200,7 @@ const Items = () => {
               className="w-full py-3 bg-primary text-on-primary font-bold rounded-xl hover:bg-on-primary-fixed-variant transition-colors text-xs flex items-center justify-center gap-1.5"
             >
               <Plus size={14} />
-              Register Food Item
+              Save Menu Item
             </button>
           </form>
         </div>

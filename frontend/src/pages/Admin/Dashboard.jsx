@@ -31,8 +31,8 @@ const Dashboard = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-8 font-body">
       <div>
-        <h1 className="font-headline font-bold text-2xl text-on-surface">Admin Management</h1>
-        <p className="text-secondary text-sm">System statistics and overview panel.</p>
+        <h1 className="font-headline font-bold text-2xl text-on-surface">Superadmin Dashboard</h1>
+        <p className="text-secondary text-sm">System statistics and access overview panel.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -100,7 +100,7 @@ const Dashboard = () => {
         <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-xl border border-primary/10">
           <AlertOctagon className="text-primary flex-shrink-0" size={24} />
           <p className="text-xs text-secondary leading-relaxed">
-            Ensure system mode is kept <strong>open</strong> during operational canteen hours and <strong>closed</strong> overnight to prevent unauthorized orders.
+            Keep access controls and operational settings aligned with the restaurant schedule.
           </p>
         </div>
       </div>

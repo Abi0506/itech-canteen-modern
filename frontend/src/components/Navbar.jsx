@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { ShoppingBag, LogOut, Award, Lightbulb, Wallet, User as UserIcon, Menu } from 'lucide-react';
+import { getRoleLabel } from '../utils/roleRouting';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -28,13 +29,13 @@ const Navbar = () => {
           <Link to="/" className="flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-3xl font-bold">restaurant_menu</span>
             <span className="font-headline font-bold text-lg text-primary tracking-tight uppercase hidden md:inline">
-              iTech Canteen
+              Restaurant POS
             </span>
           </Link>
         </div>
 
         {/* Navigation Links - Student Role Only */}
-        {user.role === 'user' && (
+        {['user', 'customer'].includes(user.role) && (
           <div className="hidden md:flex items-center gap-6">
             <Link
               to="/dashboard"
@@ -77,7 +78,7 @@ const Navbar = () => {
         {/* Right Section Actions */}
         <div className="flex items-center gap-4">
           {/* User Balance Display (Student Only) */}
-          {user.role === 'user' && (
+          {['user', 'customer'].includes(user.role) && (
             <div className="bg-primary/5 border border-primary/10 rounded-full px-3 py-1 flex items-center gap-1.5">
               <span className="material-symbols-outlined text-primary text-sm font-semibold">payments</span>
               <span className="font-headline text-xs font-bold text-primary">
@@ -87,7 +88,7 @@ const Navbar = () => {
           )}
 
           {/* Cart Icon (Student Only) */}
-          {user.role === 'user' && (
+          {['user', 'customer'].includes(user.role) && (
             <Link to="/cart" className="relative p-2 text-secondary hover:text-primary transition-colors">
               <ShoppingBag size={20} />
               {getCartCount() > 0 && (
@@ -101,7 +102,7 @@ const Navbar = () => {
           {/* Profile Name & Signout */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-on-surface-variant hidden sm:inline uppercase">
-              {user.roll_no}
+              {getRoleLabel(user.role)} - {user.roll_no}
             </span>
             <button
               onClick={handleLogout}

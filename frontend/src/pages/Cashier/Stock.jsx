@@ -67,7 +67,7 @@ const Stock = () => {
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-6 font-body">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="font-headline font-bold text-2xl text-on-surface">Canteen Stock Manager</h1>
+          <h1 className="font-headline font-bold text-2xl text-on-surface">Inventory Stock Manager</h1>
           <p className="text-secondary text-sm">Update item availability in real-time.</p>
         </div>
 

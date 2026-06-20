@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('roll_no', userRoll);
     
     await fetchProfile();
-    return role;
+    return res.data;
   };
 
   const register = async (roll_no, email, phone_no, password, user_type) => {
@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('roll_no', userRoll);
 
     await fetchProfile();
-    return role;
+    return res.data;
   };
 
   const logout = () => {

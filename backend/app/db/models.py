@@ -1,64 +1,22 @@
-from sqlalchemy import Column, Integer, String, Boolean, Decimal, DateTime, Time, Date, ForeignKey, Text, JSON
-from sqlalchemy.sql import func
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, JSON, Numeric, String, Text, Time, UniqueConstraint
 from sqlalchemy.orm import relationship
-from app.db.session import Base
+from sqlalchemy.sql import func
+
 from app.core.security import decrypt_wallet_balance, encrypt_wallet_balance
+from app.db.session import Base
+
 
 class Category(Base):
     __tablename__ = "categories"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(50), unique=True, nullable=False)
+    color = Column(String(20), nullable=False, default="#F59E0B")
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     items = relationship("FoodItem", back_populates="category")
-
-
-class CategoryTiming(Base):
-    __tablename__ = "category_timings"
-
-    id = Column(Integer, primary_key=True, index=True)
-    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"))
-    start_time = Column(Time, nullable=False)
-    end_time = Column(Time, nullable=False)
-    is_available = Column(Boolean, default=True)
-
-
-class User(Base):
-    __tablename__ = "users"
-
-    id = Column(Integer, primary_key=True, index=True)
-    roll_no = Column(String(50), unique=True, nullable=False)
-    email = Column(String(100), unique=True, nullable=False)
-    phone_no = Column(String(20))
-    password = Column(String(255), nullable=False)
-    role = Column(String(20), default="user") # 'user', 'cashier', 'admin', 'dept'
-    user_type = Column(String(20), default="student") # 'student', 'faculty', 'external'
-    email_verified = Column(Boolean, default=False, nullable=False)
-    email_verify_token = Column(String(64))
-    wallet_balance = Column(String(255)) # Encrypted balance representation
-    favourites = Column(JSON, default=list)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    reset_code = Column(String(10))
-    reset_code_expiry = Column(DateTime(timezone=True))
-    group_deleted_notification = Column(Boolean, default=False)
-    group_order_success_notification = Column(Boolean, default=False)
-    action_otp = Column(String(10))
-    action_otp_expiry = Column(DateTime(timezone=True))
-    deleted_at = Column(DateTime(timezone=True))
-    bulk_order_enabled = Column(Boolean, default=False)
-
-    orders = relationship("Order", back_populates="user")
-    wallet_transactions = relationship("WalletTransaction", back_populates="user", foreign_keys="[WalletTransaction.user_id]")
-
-    def get_balance(self) -> float:
-        return decrypt_wallet_balance(self.wallet_balance, self.id)
-
-    def set_balance(self, amount: float):
-        self.wallet_balance = encrypt_wallet_balance(amount, self.id)
 
 
 class Department(Base):
@@ -70,6 +28,40 @@ class Department(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    roll_no = Column(String(50), unique=True, nullable=False)
+    display_name = Column(String(100))
+    email = Column(String(100), unique=True, nullable=False)
+    phone_no = Column(String(20))
+    password = Column(String(255), nullable=False)
+    role = Column(String(20), default="user")
+    user_type = Column(String(20), default="student")
+    email_verified = Column(Boolean, default=False, nullable=False)
+    wallet_balance = Column(String(255))
+    favourites = Column(JSON, default=list)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    deleted_at = Column(DateTime(timezone=True))
+    bulk_order_enabled = Column(Boolean, default=False, nullable=False)
+    loyalty_points = Column(Integer, default=0, nullable=False)
+
+    orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id")
+    wallet_transactions = relationship(
+        "WalletTransaction",
+        back_populates="user",
+        foreign_keys="WalletTransaction.user_id",
+    )
+
+    def get_balance(self) -> float:
+        return decrypt_wallet_balance(self.wallet_balance, self.id)
+
+    def set_balance(self, amount: float):
+        self.wallet_balance = encrypt_wallet_balance(amount, self.id)
+
+
 class FoodItem(Base):
     __tablename__ = "food_items"
 
@@ -77,101 +69,21 @@ class FoodItem(Base):
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"))
     name = Column(String(100), nullable=False)
     description = Column(Text)
-    price = Column(Decimal(10, 2), nullable=False)
-    cash_price = Column(Decimal(10, 2))
+    price = Column(Numeric(10, 2), nullable=False)
+    cash_price = Column(Numeric(10, 2))
+    unit_of_measure = Column(String(30), default="piece")
+    tax_rate = Column(Numeric(5, 2), default=0.00)
     image = Column(String(255))
     quantity_available = Column(Integer, default=0, nullable=False)
+    reserved_quantity = Column(Integer, default=0, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     last_stock_update = Column(DateTime(timezone=True))
+    last_reserved_at = Column(DateTime(timezone=True))
     perishable = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     category = relationship("Category", back_populates="items")
-
-
-class GroupCart(Base):
-    __tablename__ = "group_carts"
-
-    id = Column(Integer, primary_key=True, index=True)
-    creator_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    join_code = Column(String(10), unique=True, nullable=False)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    expires_at = Column(DateTime(timezone=True))
-
-
-class GroupCartMember(Base):
-    __tablename__ = "group_cart_members"
-
-    id = Column(Integer, primary_key=True, index=True)
-    group_cart_id = Column(Integer, ForeignKey("group_carts.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    joined_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
-class GroupCartItem(Base):
-    __tablename__ = "group_cart_items"
-
-    id = Column(Integer, primary_key=True, index=True)
-    group_cart_id = Column(Integer, ForeignKey("group_carts.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    food_item_id = Column(Integer, ForeignKey("food_items.id", ondelete="CASCADE"), nullable=False)
-    quantity = Column(Integer, default=1, nullable=False)
-    added_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
-class Order(Base):
-    __tablename__ = "orders"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    bill_number = Column(String(50), unique=True, nullable=False)
-    total_amount = Column(Decimal(10, 2), nullable=False)
-    items = Column(JSON, default=dict) # JSON breakdown of quantities, rates, etc.
-    payment_method = Column(String(20), nullable=False) # 'wallet', 'razorpay', 'partial', 'cash', 'upi'
-    payment_status = Column(String(20), default="pending") # 'pending', 'completed', 'failed', 'refunded'
-    is_scanned = Column(Boolean, default=False)
-    razorpay_order_id = Column(String(100))
-    razorpay_payment_id = Column(String(100))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    is_group_order = Column(Boolean, default=False, nullable=False)
-    group_cart_id = Column(Integer, ForeignKey("group_carts.id", ondelete="SET NULL"))
-    wallet_amount = Column(Decimal(10, 2), default=0.00)
-    online_amount = Column(Decimal(10, 2), default=0.00)
-
-    user = relationship("User", back_populates="orders")
-    items_list = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
-
-
-class OrderItem(Base):
-    __tablename__ = "order_items"
-
-    id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
-    food_item_id = Column(Integer, ForeignKey("food_items.id", ondelete="CASCADE"), nullable=False)
-    quantity = Column(Integer, nullable=False)
-    price = Column(Decimal(10, 2), nullable=False)
-
-    order = relationship("Order", back_populates="items_list")
-    food_item = relationship("FoodItem")
-
-
-class OrderPrintKey(Base):
-    pass
-
-
-class Refund(Base):
-    __tablename__ = "refunds"
-
-    id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    amount = Column(Decimal(10, 2), nullable=False)
-    reason = Column(String(255))
-    stock_restored = Column(Boolean, default=False, nullable=False)
-    performed_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class AuditLog(Base):
@@ -188,21 +100,6 @@ class AuditLog(Base):
     ip_address = Column(String(45))
     user_agent = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
-class WalletTransaction(Base):
-    __tablename__ = "wallet_transactions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    transaction_type = Column(String(20), nullable=False) # 'credit', 'debit'
-    amount = Column(Decimal(10, 2), nullable=False)
-    description = Column(String(255))
-    order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"))
-    performed_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    user = relationship("User", back_populates="wallet_transactions", foreign_keys=[user_id])
 
 
 class StockAuditLog(Base):
@@ -225,34 +122,13 @@ class StockAuditLog(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-class StockNotification(Base):
-    __tablename__ = "stock_notifications"
-
-    id = Column(Integer, primary_key=True, index=True)
-    item_id = Column(Integer, ForeignKey("food_items.id", ondelete="CASCADE"), nullable=False)
-    notification_type = Column(String(50), default="stock_update")
-    is_read = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
 class SystemControl(Base):
     __tablename__ = "system_controls"
 
     id = Column(Integer, primary_key=True, index=True)
-    sales_mode = Column(String(20), default="closed", nullable=False) # 'closed', 'open', 'emergency'
+    sales_mode = Column(String(20), default="closed", nullable=False)
     sales_open_date = Column(Date)
     updated_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-
-class Wastage(Base):
-    __tablename__ = "wastage"
-
-    id = Column(Integer, primary_key=True, index=True)
-    item_id = Column(Integer, ForeignKey("food_items.id", ondelete="CASCADE"), nullable=False)
-    wastage_date = Column(Date, nullable=False)
-    quantity_wasted = Column(Integer, default=0, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
@@ -263,13 +139,14 @@ class Idea(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
-    upvotes = Column(Integer, default=0)
-    status = Column(String(30), default="pending") # 'pending', 'approved', 'rejected'
+    upvotes = Column(Integer, default=0, nullable=False)
+    status = Column(String(30), default="pending")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class IdeaUpvote(Base):
     __tablename__ = "idea_upvotes"
+    __table_args__ = (UniqueConstraint("idea_id", "user_id", name="uq_idea_upvotes_idea_user"),)
 
     id = Column(Integer, primary_key=True, index=True)
     idea_id = Column(Integer, ForeignKey("ideas.id", ondelete="CASCADE"), nullable=False)
@@ -277,108 +154,171 @@ class IdeaUpvote(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-class KioskApiToken(Base):
-    __tablename__ = "kiosk_api_tokens"
+class RestaurantFloor(Base):
+    __tablename__ = "restaurant_floors"
 
     id = Column(Integer, primary_key=True, index=True)
-    token_name = Column(String(100), nullable=False)
-    token_hash = Column(String(255), unique=True, nullable=False)
-    is_active = Column(Boolean, default=True)
+    name = Column(String(100), unique=True, nullable=False)
+    sort_order = Column(Integer, default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    expires_at = Column(DateTime(timezone=True))
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tables = relationship("RestaurantTable", back_populates="floor")
 
 
-class KioskAuditLog(Base):
-    __tablename__ = "kiosk_audit_log"
+class RestaurantTable(Base):
+    __tablename__ = "restaurant_tables"
 
     id = Column(Integer, primary_key=True, index=True)
-    kiosk_id = Column(String(50), nullable=False)
-    action = Column(String(100), nullable=False)
-    details = Column(Text)
+    floor_id = Column(Integer, ForeignKey("restaurant_floors.id", ondelete="CASCADE"), nullable=False)
+    table_number = Column(String(20), nullable=False)
+    seats = Column(Integer, default=2, nullable=False)
+    status = Column(String(20), default="available", nullable=False)
+    active_cashier_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    active_order_id = Column(Integer)
+    is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    floor = relationship("RestaurantFloor", back_populates="tables")
 
 
-class KioskAuthLockout(Base):
-    __tablename__ = "kiosk_auth_lockouts"
+class PaymentMethod(Base):
+    __tablename__ = "payment_methods"
 
     id = Column(Integer, primary_key=True, index=True)
-    identifier = Column(String(100), nullable=False)
-    failed_attempts = Column(Integer, default=0, nullable=False)
-    locked_until = Column(DateTime(timezone=True))
-    last_attempt_at = Column(DateTime(timezone=True))
+    method_key = Column(String(30), unique=True, nullable=False)
+    label = Column(String(50), nullable=False)
+    is_enabled = Column(Boolean, default=True, nullable=False)
+    upi_id = Column(String(100))
+    sort_order = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
-class ClosingBalance(Base):
-    __tablename__ = "closing_balance"
+class Coupon(Base):
+    __tablename__ = "coupons"
 
     id = Column(Integer, primary_key=True, index=True)
-    dates = Column(Date, server_default=func.current_date())
-    balance = Column(Decimal(12, 2), nullable=False)
-    cashier_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-
-
-class MorningBalance(Base):
-    __tablename__ = "morning_balance"
-
-    id = Column(Integer, primary_key=True, index=True)
-    dates = Column(Date, server_default=func.current_date())
-    balance = Column(Decimal(12, 2), nullable=False)
-    cashier_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-
-
-class SpecialItem(Base):
-    __tablename__ = "special_item"
-
-    id = Column(Integer, primary_key=True, index=True)
-    food_name = Column(String(100), nullable=False)
+    code = Column(String(50), unique=True, nullable=False)
+    discount_type = Column(String(20), nullable=False)
+    discount_value = Column(Numeric(10, 2), nullable=False)
+    minimum_order_amount = Column(Numeric(10, 2), default=0.00)
+    maximum_discount_amount = Column(Numeric(10, 2))
+    is_active = Column(Boolean, default=True, nullable=False)
+    starts_at = Column(DateTime(timezone=True))
+    ends_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
-class BulkOrderPaymentLog(Base):
-    __tablename__ = "bulk_order_payment_log"
+class Promotion(Base):
+    __tablename__ = "promotions"
 
     id = Column(Integer, primary_key=True, index=True)
-    department_id = Column(Integer, nullable=False)
-    amount = Column(Decimal(10, 2), nullable=False)
-    logged_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    payment_method = Column(String(20), nullable=False)
-    details = Column(Text)
+    name = Column(String(100), nullable=False)
+    target_type = Column(String(20), nullable=False)
+    target_id = Column(Integer)
+    discount_type = Column(String(20), nullable=False)
+    discount_value = Column(Numeric(10, 2), nullable=False)
+    minimum_quantity = Column(Integer)
+    minimum_order_amount = Column(Numeric(10, 2))
+    is_active = Column(Boolean, default=True, nullable=False)
+    starts_at = Column(DateTime(timezone=True))
+    ends_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
-class CashierRequest(Base):
-    __tablename__ = "cashier_requests"
+class TableSession(Base):
+    __tablename__ = "table_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
-    cashier_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    request_type = Column(String(50), nullable=False)
-    amount = Column(Decimal(10, 2))
-    status = Column(String(20), default="pending")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    resolved_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    table_id = Column(Integer, ForeignKey("restaurant_tables.id", ondelete="CASCADE"), nullable=False)
+    customer_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    cashier_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    session_pin = Column(String(4), nullable=False)
+    session_token = Column(String(64), unique=True, nullable=False)
+    status = Column(String(20), default="active", nullable=False)
+    opened_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_active_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    closed_at = Column(DateTime(timezone=True))
 
 
-class FacultyBulkRequest(Base):
-    __tablename__ = "faculty_bulk_requests"
+class LoyaltyAccount(Base):
+    __tablename__ = "loyalty_accounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
+    total_points = Column(Integer, default=0, nullable=False)
+    lifetime_spend = Column(Numeric(12, 2), default=0.00)
+    tier = Column(String(30), default="standard")
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class Order(Base):
+    __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    event_name = Column(String(255), nullable=False)
-    event_date = Column(Date, nullable=False)
-    delivery_time = Column(Time, nullable=False)
-    total_amount = Column(Decimal(10, 2), nullable=False)
-    status = Column(String(20), default="pending")
+    cashier_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    floor_id = Column(Integer, ForeignKey("restaurant_floors.id", ondelete="SET NULL"))
+    table_id = Column(Integer, ForeignKey("restaurant_tables.id", ondelete="SET NULL"))
+    session_id = Column(Integer, ForeignKey("table_sessions.id", ondelete="SET NULL"))
+    bill_number = Column(String(50), unique=True, nullable=False)
+    total_amount = Column(Numeric(10, 2), nullable=False)
+    subtotal_amount = Column(Numeric(10, 2), default=0.00)
+    tax_amount = Column(Numeric(10, 2), default=0.00)
+    discount_amount = Column(Numeric(10, 2), default=0.00)
+    items = Column(JSON, default=dict)
+    payment_method = Column(String(20), nullable=False)
+    payment_status = Column(String(20), default="pending")
+    order_status = Column(String(20), default="draft")
+    kitchen_status = Column(String(20), default="to_cook")
+    is_scanned = Column(Boolean, default=False)
+    razorpay_order_id = Column(String(100))
+    razorpay_payment_id = Column(String(100))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    resolved_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    wallet_amount = Column(Numeric(10, 2), default=0.00)
+    online_amount = Column(Numeric(10, 2), default=0.00)
+    coupon_code = Column(String(50))
+    loyalty_points_earned = Column(Integer, default=0, nullable=False)
+    closed_at = Column(DateTime(timezone=True))
+
+    user = relationship("User", back_populates="orders", foreign_keys=[user_id])
+    items_list = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
 
 
-class FacultyBulkItem(Base):
-    __tablename__ = "faculty_bulk_items"
+class OrderItem(Base):
+    __tablename__ = "order_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    request_id = Column(Integer, ForeignKey("faculty_bulk_requests.id", ondelete="CASCADE"), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
     food_item_id = Column(Integer, ForeignKey("food_items.id", ondelete="CASCADE"), nullable=False)
     quantity = Column(Integer, nullable=False)
-    price = Column(Decimal(10, 2), nullable=False)
+    price = Column(Numeric(10, 2), nullable=False)
+    status = Column(String(20), default="pending")
+    kitchen_status = Column(String(20), default="to_cook")
+    assigned_chef_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    sent_to_kitchen_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))
+
+    order = relationship("Order", back_populates="items_list")
+    food_item = relationship("FoodItem")
+
+
+class WalletTransaction(Base):
+    __tablename__ = "wallet_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    transaction_type = Column(String(20), nullable=False)
+    amount = Column(Numeric(10, 2), nullable=False)
+    description = Column(String(255))
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"))
+    performed_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="wallet_transactions", foreign_keys=[user_id])
