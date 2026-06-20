@@ -49,7 +49,8 @@ def is_valid_phone(phone: str) -> bool:
 
 @router.post("/login", response_model=Token)
 def login(login_in: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == login_in.email).first()
+    email = login_in.email.strip().lower()
+    user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(status_code=400, detail="Invalid email or password.")
     
@@ -73,6 +74,7 @@ def login(login_in: UserLogin, db: Session = Depends(get_db)):
 
 @router.post("/signup", response_model=UserResponse)
 def signup(user_in: UserRegister, db: Session = Depends(get_db)):
+    email = user_in.email.strip().lower()
     # Verify role exists
     role = db.query(Role).filter(Role.id == user_in.role_id).first()
     if not role:
@@ -84,10 +86,10 @@ def signup(user_in: UserRegister, db: Session = Depends(get_db)):
 
     # Check duplicates
     existing = db.query(User).filter(
-        (User.email == user_in.email) | (User.mobile_number == user_in.mobile_number)
+        (User.email == email) | (User.mobile_number == user_in.mobile_number)
     ).first()
     if existing:
-        if existing.email == user_in.email:
+        if existing.email == email:
             raise HTTPException(status_code=400, detail="An account with this email already exists.")
         if existing.mobile_number == user_in.mobile_number:
             raise HTTPException(status_code=400, detail="An account with this phone number already exists.")
@@ -95,7 +97,7 @@ def signup(user_in: UserRegister, db: Session = Depends(get_db)):
     hashed_pw = get_password_hash(user_in.password)
     new_user = User(
         name=user_in.name,
-        email=user_in.email,
+        email=email,
         mobile_number=user_in.mobile_number,
         password_hash=hashed_pw,
         role_id=user_in.role_id,
@@ -108,6 +110,7 @@ def signup(user_in: UserRegister, db: Session = Depends(get_db)):
 
 @router.post("/customer-signup", response_model=CustomerResponse)
 def customer_signup(cust_in: CustomerSignup, db: Session = Depends(get_db)):
+    email = cust_in.email.strip().lower() if cust_in.email else None
     # Validate phone
     if not is_valid_phone(cust_in.mobile_number):
         raise HTTPException(status_code=400, detail="Please enter a valid phone number (10-15 digits).")
@@ -119,7 +122,7 @@ def customer_signup(cust_in: CustomerSignup, db: Session = Depends(get_db)):
 
     new_cust = Customer(
         name=cust_in.name,
-        email=cust_in.email,
+        email=email,
         mobile_number=cust_in.mobile_number,
         is_guest=False
     )

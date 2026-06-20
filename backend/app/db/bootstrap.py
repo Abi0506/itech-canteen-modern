@@ -1,7 +1,7 @@
 from decimal import Decimal
 import uuid
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine.url import make_url
 
 from app.core.config import settings
@@ -26,6 +26,19 @@ from app.db.session import Base, SessionLocal, engine
 # Import models so SQLAlchemy registers every mapped table before create_all runs.
 from app.db import models  # noqa: F401
 
+LEGACY_TABLE_NAMES = {
+    "departments",
+    "food_items",
+    "idea_upvotes",
+    "ideas",
+    "loyalty_accounts",
+    "restaurant_floors",
+    "restaurant_tables",
+    "stock_audit_logs",
+    "system_controls",
+    "wallet_transactions",
+}
+
 
 def _create_database_if_needed():
     url = make_url(settings.DATABASE_URL)
@@ -49,9 +62,30 @@ def _create_database_if_needed():
 
 def bootstrap_database():
     _create_database_if_needed()
+    if _needs_schema_reset():
+        _reset_database_schema()
     Base.metadata.create_all(bind=engine)
     if settings.BOOTSTRAP_SEED_DEMO_DATA:
         _seed_demo_data()
+
+
+def _needs_schema_reset() -> bool:
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    return bool(existing_tables & LEGACY_TABLE_NAMES)
+
+
+def _reset_database_schema():
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+    if not existing_tables:
+        return
+
+    quoted_tables = ", ".join(f"`{name}`" for name in existing_tables)
+    with engine.begin() as connection:
+        connection.execute(text("SET FOREIGN_KEY_CHECKS=0"))
+        connection.execute(text(f"DROP TABLE IF EXISTS {quoted_tables}"))
+        connection.execute(text("SET FOREIGN_KEY_CHECKS=1"))
 
 
 def _upsert_role(db, role_id: int, name: str):
