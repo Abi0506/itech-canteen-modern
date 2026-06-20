@@ -4,7 +4,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     APP_ENV: str = "development"
-    DATABASE_URL: str = "mysql+pymysql://root:root@localhost:3306/canteen_db"
+    DATABASE_URL: str = "mysql+pymysql://root:Adhianu%402886@localhost:3306/cafe_pos"
     
     # Security Settings
     SECRET_KEY: str = "replace_with_a_super_secret_jwt_signing_key_at_least_32_characters"

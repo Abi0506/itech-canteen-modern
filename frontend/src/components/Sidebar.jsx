@@ -1,13 +1,13 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Receipt, RefreshCw, BarChart2, Folder, Coffee, Users, ShieldAlert, Sliders } from 'lucide-react';
+import { LayoutDashboard, Receipt, RefreshCw, BarChart2, Folder, Coffee, Users, Sliders, MapPin, Percent, Layers, Landmark } from 'lucide-react';
 
 const Sidebar = () => {
   const { user } = useAuth();
   const location = useLocation();
 
-  if (!user || user.role === 'user') return null;
+  if (!user || user.role_name === 'chef') return null;
 
   const isActive = (path) => location.pathname === path;
 
@@ -16,43 +16,86 @@ const Sidebar = () => {
       <div className="space-y-6">
         
         {/* Cashier Sidebar Layout */}
-        {user.role === 'cashier' && (
+        {user.role_name === 'cashier' && (
           <div className="space-y-1">
             <p className="text-[10px] font-bold text-outline uppercase tracking-wider px-3 mb-2">Cashier desk</p>
             <Link
-              to="/cashier/dashboard"
+              to="/cashier/tables"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                isActive('/cashier/dashboard') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+                isActive('/cashier/tables') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+              }`}
+            >
+              <Landmark size={18} />
+              Tables Grid
+            </Link>
+            <Link
+              to="/cashier/orders"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                isActive('/cashier/orders') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+              }`}
+            >
+              <Receipt size={18} />
+              Session Orders
+            </Link>
+            <Link
+              to="/cashier/customers"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                isActive('/cashier/customers') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+              }`}
+            >
+              <Users size={18} />
+              Customers
+            </Link>
+          </div>
+        )}
+
+        {/* Inventory Manager Sidebar Layout */}
+        {user.role_name === 'inventory_manager' && (
+          <div className="space-y-1">
+            <p className="text-[10px] font-bold text-outline uppercase tracking-wider px-3 mb-2">Inventory Manager</p>
+            <Link
+              to="/inventory/dashboard"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                isActive('/inventory/dashboard') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
               }`}
             >
               <LayoutDashboard size={18} />
               Dashboard
             </Link>
             <Link
-              to="/cashier/billing"
+              to="/inventory/items"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                isActive('/cashier/billing') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+                isActive('/inventory/items') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
               }`}
             >
-              <Receipt size={18} />
-              Billing
+              <Coffee size={18} />
+              Products CRUD
             </Link>
             <Link
-              to="/cashier/stock"
+              to="/inventory/categories"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                isActive('/cashier/stock') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+                isActive('/inventory/categories') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+              }`}
+            >
+              <Folder size={18} />
+              Categories
+            </Link>
+            <Link
+              to="/inventory/stock"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                isActive('/inventory/stock') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
               }`}
             >
               <RefreshCw size={18} />
-              Stock update
+              Stock Adjustments
             </Link>
           </div>
         )}
 
-        {/* Admin Sidebar Layout */}
-        {user.role === 'admin' && (
+        {/* Superadmin Sidebar Layout */}
+        {user.role_name === 'superadmin' && (
           <div className="space-y-1">
-            <p className="text-[10px] font-bold text-outline uppercase tracking-wider px-3 mb-2">Admin Panel</p>
+            <p className="text-[10px] font-bold text-outline uppercase tracking-wider px-3 mb-2">Superadmin Panel</p>
             <Link
               to="/admin/dashboard"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
@@ -63,49 +106,58 @@ const Sidebar = () => {
               Dashboard
             </Link>
             <Link
-              to="/admin/categories"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                isActive('/admin/categories') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
-              }`}
-            >
-              <Folder size={18} />
-              Categories
-            </Link>
-            <Link
-              to="/admin/items"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                isActive('/admin/items') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
-              }`}
-            >
-              <Coffee size={18} />
-              Food items
-            </Link>
-            <Link
               to="/admin/users"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
                 isActive('/admin/users') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
               }`}
             >
               <Users size={18} />
-              User management
+              Users & Staff
             </Link>
             <Link
-              to="/admin/system"
+              to="/admin/coupons"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                isActive('/admin/system') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+                isActive('/admin/coupons') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+              }`}
+            >
+              <Percent size={18} />
+              Coupons & Promos
+            </Link>
+            <Link
+              to="/admin/tables"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                isActive('/admin/tables') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+              }`}
+            >
+              <Layers size={18} />
+              Table Monitor
+            </Link>
+            <Link
+              to="/admin/floors"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                isActive('/admin/floors') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+              }`}
+            >
+              <MapPin size={18} />
+              Floors & Tables
+            </Link>
+            <Link
+              to="/admin/settings"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                isActive('/admin/settings') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
               }`}
             >
               <Sliders size={18} />
-              System controls
+              Venue Settings
             </Link>
             <Link
-              to="/admin/audit-logs"
+              to="/admin/reports"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                isActive('/admin/audit-logs') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+                isActive('/admin/reports') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
               }`}
             >
-              <ShieldAlert size={18} />
-              Audit logs
+              <BarChart2 size={18} />
+              Reports & Charts
             </Link>
           </div>
         )}
