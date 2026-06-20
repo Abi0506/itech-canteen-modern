@@ -17,6 +17,8 @@ const Coupons = () => {
   const [validFrom, setValidFrom] = useState('');
   const [validUntil, setValidUntil] = useState('');
   const [cError, setCError] = useState('');
+  const [popupMessage, setPopupMessage] = useState('');
+  const [popupTitle, setPopupTitle] = useState('Constraint not satisfied');
 
   // Promo state
   const [showPromoModal, setShowPromoModal] = useState(false);
@@ -56,6 +58,13 @@ const Coupons = () => {
     return fallback;
   };
 
+  const openPopup = (message, title = 'Constraint not satisfied') => {
+    setPopupTitle(title);
+    setPopupMessage(message);
+  };
+
+  const closePopup = () => setPopupMessage('');
+
   const handleAddCoupon = async (e) => {
     e.preventDefault();
     setCError('');
@@ -65,26 +74,31 @@ const Coupons = () => {
     const parsedMaxUses = maxUses ? Number(maxUses) : null;
 
     if (!normalizedCode) {
+      openPopup('Coupon code is required');
       setCError('Coupon code is required');
       return;
     }
 
     if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+      openPopup('Coupon value must be greater than 0');
       setCError('Coupon value must be greater than 0');
       return;
     }
 
     if (couponType === 'percent' && parsedValue > 100) {
+      openPopup('Percentage discount cannot be greater than 100');
       setCError('Percentage discount cannot be greater than 100');
       return;
     }
 
     if (parsedMaxUses !== null && (!Number.isInteger(parsedMaxUses) || parsedMaxUses <= 0)) {
+      openPopup('Max uses must be a positive whole number');
       setCError('Max uses must be a positive whole number');
       return;
     }
 
     if (validFrom && validUntil && validUntil < validFrom) {
+      openPopup('Valid until date cannot be earlier than valid from date');
       setCError('Valid until date cannot be earlier than valid from date');
       return;
     }
@@ -106,7 +120,9 @@ const Coupons = () => {
       setValidUntil('');
       fetchData();
     } catch (err) {
-      setCError(extractApiError(err, 'Failed to create coupon'));
+      const message = extractApiError(err, 'Failed to create coupon');
+      openPopup(message);
+      setCError(message);
     }
   };
 
@@ -127,7 +143,9 @@ const Coupons = () => {
       setPromoVal('');
       fetchData();
     } catch (err) {
-      setPError(err.response?.data?.detail || 'Failed to create promotion');
+      const message = err.response?.data?.detail || 'Failed to create promotion';
+      openPopup(message);
+      setPError(message);
     }
   };
 
@@ -251,6 +269,24 @@ const Coupons = () => {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {popupMessage && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-outline/10 bg-surface p-5 shadow-2xl">
+            <h4 className="font-headline text-base font-bold text-on-surface">{popupTitle}</h4>
+            <p className="mt-2 text-sm text-secondary">{popupMessage}</p>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={closePopup}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary/95"
+              >
+                OK
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

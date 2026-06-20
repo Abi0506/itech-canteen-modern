@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import api from '../../utils/api';
 import { Plus, Trash2, Key, ToggleLeft, ToggleRight, UserCheck } from 'lucide-react';
 
+const passwordConstraintMessage = 'Password must be at least 8 characters and contain one uppercase letter, one number, and one special character.';
+
 const Users = () => {
   const [data, setData] = useState({ staff: [], customers: [] });
   const [loading, setLoading] = useState(true);
@@ -15,6 +17,11 @@ const Users = () => {
   const [password, setPassword] = useState('');
   const [roleId, setRoleId] = useState(2); // employee by default
   const [modalError, setModalError] = useState('');
+  const [popupMessage, setPopupMessage] = useState('');
+  const [popupTitle, setPopupTitle] = useState('Constraint not satisfied');
+  const [resetPasswordTarget, setResetPasswordTarget] = useState(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [resetPasswordError, setResetPasswordError] = useState('');
 
   const fetchUsers = async () => {
     try {
@@ -53,6 +60,11 @@ const Users = () => {
   const handleAddStaff = async (e) => {
     e.preventDefault();
     setModalError('');
+    if (!passwordConstraintOk(password)) {
+      openPopup(passwordConstraintMessage);
+      setModalError(passwordConstraintMessage);
+      return;
+    }
     try {
       await api.post('/admin/users', {
         name,
@@ -69,6 +81,52 @@ const Users = () => {
       fetchUsers();
     } catch (err) {
       setModalError(err.response?.data?.detail || 'Failed to create staff member');
+    }
+  };
+
+  const passwordConstraintOk = (value) => (
+    value.length >= 8
+    && /[A-Z]/.test(value)
+    && /\d/.test(value)
+    && /[^A-Za-z0-9\s]/.test(value)
+  );
+
+  const openPopup = (message, title = 'Constraint not satisfied') => {
+    setPopupTitle(title);
+    setPopupMessage(message);
+  };
+
+  const closePopup = () => setPopupMessage('');
+
+  const openResetPassword = (userId) => {
+    setResetPasswordTarget(userId);
+    setResetPasswordValue('');
+    setResetPasswordError('');
+  };
+
+  const closeResetPassword = () => {
+    setResetPasswordTarget(null);
+    setResetPasswordValue('');
+    setResetPasswordError('');
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setResetPasswordError('');
+
+    if (!passwordConstraintOk(resetPasswordValue)) {
+      setResetPasswordError(passwordConstraintMessage);
+      openPopup(passwordConstraintMessage);
+      return;
+    }
+
+    try {
+      await api.put(`/admin/users/${resetPasswordTarget}/password`, { password: resetPasswordValue });
+      closeResetPassword();
+    } catch (err) {
+      const message = err.response?.data?.detail || 'Failed to reset password';
+      setResetPasswordError(message);
+      openPopup(message);
     }
   };
 
@@ -152,10 +210,7 @@ const Users = () => {
                   </td>
                   <td className="p-4 text-right space-x-2">
                     <button
-                      onClick={() => {
-                        const newPw = prompt('Enter new password:');
-                        if (newPw) api.put(`/admin/users/${s.id}/password`, { password: newPw });
-                      }}
+                      onClick={() => openResetPassword(s.id)}
                       className="p-2 text-secondary hover:text-primary transition-colors"
                       title="Reset Password"
                     >
@@ -254,6 +309,9 @@ const Users = () => {
                   type="password" required
                   className="w-full p-3 bg-surface-container-low border border-outline/10 rounded-lg text-sm"
                   value={password} onChange={(e) => setPassword(e.target.value)}
+                  minLength={8}
+                  pattern="(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}"
+                  title={passwordConstraintMessage}
                 />
               </div>
               <div>
@@ -283,6 +341,50 @@ const Users = () => {
                 >
                   Save Account
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {popupMessage && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-outline/10 bg-surface p-5 shadow-2xl">
+            <h4 className="font-headline text-base font-bold text-on-surface">{popupTitle}</h4>
+            <p className="mt-2 text-sm text-secondary">{popupMessage}</p>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={closePopup}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary/95"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {resetPasswordTarget !== null && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-outline/10 bg-surface p-5 shadow-2xl">
+            <h4 className="font-headline text-base font-bold text-on-surface">Reset Password</h4>
+            <p className="mt-2 text-xs text-secondary">{passwordConstraintMessage}</p>
+            <form className="mt-4 space-y-3" onSubmit={handleResetPassword}>
+              <input
+                type="password"
+                className="w-full p-3 bg-surface-container-low border border-outline/10 rounded-lg text-sm"
+                value={resetPasswordValue}
+                onChange={(e) => setResetPasswordValue(e.target.value)}
+                minLength={8}
+                pattern="(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}"
+                title={passwordConstraintMessage}
+                placeholder="Enter new password"
+              />
+              {resetPasswordError && <p className="text-xs text-error">{resetPasswordError}</p>}
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={closeResetPassword} className="px-4 py-2 border border-outline/10 rounded-lg text-sm font-semibold hover:bg-surface-container">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-semibold hover:bg-primary/95">Save</button>
               </div>
             </form>
           </div>

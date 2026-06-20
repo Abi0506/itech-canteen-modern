@@ -45,7 +45,7 @@ def _create_database_if_needed():
     if url.get_backend_name() != "mysql" or not url.database:
         return
 
-    server_url = url.set(database=None)
+    server_url = url.set(database="")
     server_engine = create_engine(server_url, pool_pre_ping=True)
     quoted_db = server_engine.dialect.identifier_preparer.quote(url.database)
 

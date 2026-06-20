@@ -5,6 +5,15 @@ import { UserPlus, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { getGoogleCredential } from '../utils/googleAuth';
 import { getLandingPath } from '../utils/roleRouting';
 
+const passwordRules = [
+  { label: 'At least 8 characters', test: (value) => value.length >= 8 },
+  { label: 'At least one uppercase letter', test: (value) => /[A-Z]/.test(value) },
+  { label: 'At least one number', test: (value) => /\d/.test(value) },
+  { label: 'At least one special character', test: (value) => /[^A-Za-z0-9\s]/.test(value) },
+];
+
+const passwordConstraintMessage = 'Password must be at least 8 characters and contain one uppercase letter, one number, and one special character.';
+
 const Register = () => {
   const { register, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
@@ -17,11 +26,18 @@ const Register = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [constraintPopup, setConstraintPopup] = useState('');
+  const passwordIsValid = passwordRules.every((rule) => rule.test(password));
 
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    if (!passwordIsValid) {
+      setConstraintPopup(passwordConstraintMessage);
+      setError(passwordConstraintMessage);
+      return;
+    }
     try {
       await register(rollNo, email, phoneNo, password, userType);
       setSuccess('Registration successful! Redirecting to login...');
@@ -32,6 +48,8 @@ const Register = () => {
       setError(err.response?.data?.detail || 'Registration failed. Please check inputs.');
     }
   };
+
+  const closeConstraintPopup = () => setConstraintPopup('');
 
   const handleGoogleRegister = async () => {
     setError('');
@@ -92,6 +110,24 @@ const Register = () => {
             <div className="toast-animate flex items-start gap-3 p-4 rounded-xl bg-tertiary-container/20 border border-tertiary/10" role="alert">
               <span className="material-symbols-outlined text-tertiary flex-shrink-0 mt-0.5">check_circle</span>
               <p className="text-on-tertiary-container text-sm font-medium">{success}</p>
+            </div>
+          )}
+
+          {constraintPopup && (
+            <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+              <div className="w-full max-w-sm rounded-2xl border border-outline/10 bg-surface p-5 shadow-2xl">
+                <h3 className="font-headline text-lg font-bold text-on-surface">Password constraint not satisfied</h3>
+                <p className="mt-2 text-sm text-secondary">{constraintPopup}</p>
+                <div className="mt-5 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={closeConstraintPopup}
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary/95"
+                  >
+                    OK
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -174,6 +210,10 @@ const Register = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  minLength="8"
+                  pattern="(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}"
+                  title={passwordConstraintMessage}
+                  aria-describedby="password-requirements"
                 />
                 <button
                   type="button"
@@ -183,12 +223,29 @@ const Register = () => {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+              <div id="password-requirements" className="mt-2 grid gap-1 px-1">
+                {passwordRules.map((rule) => {
+                  const passed = rule.test(password);
+                  return (
+                    <p
+                      key={rule.label}
+                      className={`flex items-center gap-2 text-xs ${
+                        passed ? 'text-emerald-700' : 'text-secondary'
+                      }`}
+                    >
+                      <span aria-hidden="true">{passed ? '✓' : '○'}</span>
+                      {rule.label}
+                    </p>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Submit */}
             <button
               type="submit"
-              className="w-full py-4 bg-primary text-on-primary font-semibold rounded-lg tracking-wide hover:bg-on-primary-fixed-variant active:scale-[0.98] transition-all duration-200 editorial-shadow flex items-center justify-center gap-2 mt-4"
+              disabled={!passwordIsValid}
+              className="w-full py-4 bg-primary text-on-primary font-semibold rounded-lg tracking-wide hover:bg-on-primary-fixed-variant active:scale-[0.98] transition-all duration-200 editorial-shadow flex items-center justify-center gap-2 mt-4 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <UserPlus size={20} />
               Register Account

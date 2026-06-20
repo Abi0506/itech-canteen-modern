@@ -22,7 +22,7 @@ def get_active_session(qr_token: str, db: Session, x_device_token: Optional[str]
     if not session:
         raise HTTPException(status_code=400, detail="No active session on this table. Please check in with cashier.")
         
-    if session.lock_mode == 'device' and session.device_token != x_device_token:
+    if session.lock_mode == 'locked' and session.device_token and session.device_token != x_device_token:
         raise HTTPException(status_code=401, detail="Unauthorized device for this session")
         
     return session, table
@@ -43,9 +43,9 @@ def resolve_qr_token(qr_token: str, db: Session = Depends(get_db)):
         "table_number": table.table_number,
         "seats": table.seats,
         "self_ordering_enabled": venue.self_ordering_enabled if venue else True,
-        "self_ordering_mode": venue.self_ordering_mode if venue else "online_ordering",
+        "self_ordering_mode": venue.self_ordering_mode if venue else "both",
         "has_active_session": session is not None,
-        "lock_mode": session.lock_mode if session else (venue.self_order_lock_mode if venue else "device")
+        "lock_mode": "pin" if session and session.lock_mode == "locked" else (venue.self_order_lock_mode if venue else "pin")
     }
 
 @router.post("/{qr_token}/signup")
@@ -74,7 +74,7 @@ def customer_self_signup(qr_token: str, cust_in: CustomerSignup, db: Session = D
         device_token = str(uuid.uuid4())
         pin = f"{random.randint(1000, 9999)}"
         venue = db.query(VenueSetting).first()
-        lock_mode = venue.self_order_lock_mode if venue else "device"
+        lock_mode = "unlocked" if venue and venue.self_order_lock_mode in {"none", "device"} else "locked"
         
         session = TableSession(
             table_id=table.id,
@@ -209,7 +209,7 @@ async def create_self_order(qr_token: str, payload: Dict[str, Any], db: Session 
             quantity=Decimal(str(item["quantity"])),
             unit_price=prod.price,
             line_total=line_total,
-            kitchen_status="to_cook",
+            kitchen_status="pending",
             notes=item.get("notes")
         )
         db.add(order_item)

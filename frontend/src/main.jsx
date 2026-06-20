@@ -21,6 +21,9 @@ import AdminReports from './pages/Admin/Reports';
 import CashierTables from './pages/Cashier/Tables';
 import CashierOrderScreen from './pages/Cashier/OrderScreen';
 import CashierOrdersList from './pages/Cashier/OrdersList';
+import CashierCustomers from './pages/Cashier/Customers';
+import KitchenDisplay from './pages/Kitchen/KitchenDisplay';
+import SelfOrder from './pages/Customer/SelfOrder';
 
 // Inventory Pages
 import InventoryDashboard from './pages/Inventory/Dashboard';
@@ -117,6 +120,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
+          <Route path="/self-order/:tableId" element={<SelfOrder />} />
 
           {/* Protected routes */}
           <Route element={<RequireAuth />}>
@@ -153,7 +157,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
               {/* ── Chef / KDS routes ─── */}
               <Route element={<RequireRole allowedRoles={['chef']} />}>
-                <Route path="/kds" element={<KDSPage />} />
+                <Route path="/kds" element={<KitchenDisplay />} />
               </Route>
 
             </Route>
@@ -166,3 +170,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </React.StrictMode>
 );
+

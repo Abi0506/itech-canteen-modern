@@ -42,7 +42,7 @@ async def process_payment(payload: Dict[str, Any], db: Session = Depends(get_db)
         amount_received=received,
         change_due=change if change > 0 else Decimal("0.00"),
         reference_code=payload.get("reference_code"),
-        status="success",
+        status="completed",
         received_by=current_user.id,
         created_at=datetime.utcnow()
     )
