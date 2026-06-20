@@ -31,6 +31,7 @@ const OrderScreen = () => {
   const [newCustEmail, setNewCustEmail] = useState('');
   const [isRegisteringNewCust, setIsRegisteringNewCust] = useState(false);
   const [customerLoyalty, setCustomerLoyalty] = useState(null);
+  const [couponInput, setCouponInput] = useState('');
 
   // Receipt Modal State
   const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -406,6 +407,41 @@ const OrderScreen = () => {
     script.onerror = () => resolve(false);
     document.body.appendChild(script);
   });
+
+  const handleApplyCoupon = async () => {
+    if (!currentOrder?.id) return;
+    if (!couponInput.trim()) {
+      setError('Please enter a coupon code');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const res = await api.post(`/cashier/orders/${currentOrder.id}/apply-coupon`, { code: couponInput.trim() });
+      setCurrentOrder(res.data);
+      setCouponInput('');
+      setMessage('Coupon applied successfully');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to apply coupon');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemoveCoupon = async () => {
+    if (!currentOrder?.id) return;
+    setBusy(true);
+    setError('');
+    try {
+      const res = await api.post(`/cashier/orders/${currentOrder.id}/remove-coupon`);
+      setCurrentOrder(res.data);
+      setMessage('Coupon removed');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to remove coupon');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handlePayBill = async () => {
     if (!selectedCustomer) {
@@ -794,6 +830,52 @@ const OrderScreen = () => {
               <span>Total amount</span>
               <span>Rs.{cumulativeTotal.toFixed(2)}</span>
             </div>
+            
+            <div className="border-t border-outline/5 pt-3 mt-2">
+              {currentOrder?.coupon_code ? (
+                <div className="flex justify-between items-center bg-emerald-50 p-2 rounded-xl border border-emerald-100">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-emerald-700">Coupon: {currentOrder.coupon_code}</span>
+                    {Number(currentOrder.discount_total || 0) > 0 && (
+                      <span className="text-[10px] text-emerald-600">-Rs.{Number(currentOrder.discount_total).toFixed(2)}</span>
+                    )}
+                  </div>
+                  <button 
+                    onClick={handleRemoveCoupon}
+                    disabled={busy}
+                    className="text-[10px] uppercase font-bold text-error bg-error/10 px-2 py-1 rounded"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value)}
+                    placeholder="Coupon Code"
+                    className="flex-1 rounded-xl border border-outline/10 bg-surface-container-lowest px-3 py-1.5 text-xs focus:border-primary/30 outline-none"
+                  />
+                  <button
+                    onClick={handleApplyCoupon}
+                    disabled={busy || !couponInput.trim()}
+                    className="rounded-xl bg-primary px-3 py-1.5 text-xs font-bold text-on-primary disabled:opacity-50"
+                  >
+                    Apply
+                  </button>
+                </div>
+              )}
+            </div>
+            {currentOrder?.applied_promotions?.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {currentOrder.applied_promotions.map((promo, idx) => (
+                  <div key={idx} className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-1 rounded-lg">
+                    ✨ Promo applied: {promo}
+                  </div>
+                ))}
+              </div>
+            )}
             {totalPaid > 0 && (
               <div className="flex justify-between text-emerald-700">
                 <span>Paid</span>

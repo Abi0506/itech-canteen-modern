@@ -150,6 +150,19 @@ class Coupon(Base):
     valid_until = Column(Date, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
 
+    targets = relationship("CouponTarget", back_populates="coupon", cascade="all, delete-orphan")
+
+# ─── Coupon Targets ───────────────────────────────────────────────────────────
+class CouponTarget(Base):
+    __tablename__ = "coupon_targets"
+    id = Column(Integer, primary_key=True, index=True)
+    coupon_id = Column(Integer, ForeignKey("coupons.id", ondelete="CASCADE"), nullable=False)
+    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
+
+    coupon = relationship("Coupon", back_populates="targets")
+    customer = relationship("Customer")
+
+
 # ─── Promotions ───────────────────────────────────────────────────────────────
 class Promotion(Base):
     __tablename__ = "promotions"

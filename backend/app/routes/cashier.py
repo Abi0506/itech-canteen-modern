@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.db.models import (
     User,
+    Coupon,
     TableMaster,
     Order,
     OrderItem,
@@ -30,6 +31,7 @@ from app.models.schemas import OrderCreate, OrderResponse, CustomerSignup, Custo
 from app.routes.auth import require_role
 from app.routes.websockets import manager
 from app.services.email import send_table_release_email
+from app.services.pricing import recalculate_order_totals
 from app.routes.loyalty import award_loyalty_points
 
 router = APIRouter(prefix="/cashier", tags=["cashier"])
@@ -188,6 +190,12 @@ def _serialize_order(order: Order, db: Session) -> dict[str, Any]:
                 "is_guest": bool(customer_row.is_guest),
             }
 
+    coupon_code = None
+    if order.coupon_id:
+        coupon = db.query(Coupon).filter(Coupon.id == order.coupon_id).first()
+        if coupon:
+            coupon_code = coupon.code
+
     return {
         "id": order.id,
         "order_number": order.order_number,
@@ -201,6 +209,8 @@ def _serialize_order(order: Order, db: Session) -> dict[str, Any]:
         "discount_total": float(order.discount_total),
         "total": float(order.total),
         "notes": order.notes,
+        "coupon_code": coupon_code,
+        "applied_promotions": getattr(order, "applied_promotions", []),
         "created_at": order.created_at,
         "updated_at": order.updated_at,
         "items": [_serialize_order_item(item) for item in order.items],
@@ -222,14 +232,6 @@ def _serialize_payment(payment: Payment, db: Session) -> dict[str, Any]:
         "received_by": payment.received_by,
         "created_at": payment.created_at,
     }
-
-
-def _recalculate_order_totals(order: Order) -> None:
-    subtotal = sum((Decimal(str(item.line_total)) for item in order.items), Decimal("0.00"))
-    tax_total = subtotal * Decimal("0.05")
-    order.subtotal = subtotal
-    order.tax_total = tax_total
-    order.total = subtotal + tax_total - (order.discount_total or Decimal("0.00"))
 
 
 def _append_items_to_order(db: Session, order: Order, items_in: List[OrderItemCreate], current_user: User) -> None:
@@ -272,7 +274,14 @@ def _append_items_to_order(db: Session, order: Order, items_in: List[OrderItemCr
 
     db.flush()
     db.refresh(order)
-    _recalculate_order_totals(order)
+    _, _, _, _, applied_promotions = recalculate_order_totals(db, order)
+    order.applied_promotions = applied_promotions
+    coupon_code = None
+    if order.coupon_id:
+        coupon = db.query(Coupon).filter(Coupon.id == order.coupon_id).first()
+        if coupon:
+            coupon_code = coupon.code
+    order.coupon_code = coupon_code
 
 
 def _send_order_to_kitchen(order: Order, db: Session, current_user: User) -> None:
@@ -614,7 +623,55 @@ def get_cashier_orders(db: Session = Depends(get_db)):
     session_ids = [s.id for s in open_sessions]
     if not session_ids:
         return []
-    return db.query(Order).filter(Order.pos_session_id.in_(session_ids)).order_by(Order.created_at.desc()).all()
+    orders = db.query(Order).filter(Order.pos_session_id.in_(session_ids)).order_by(Order.created_at.desc()).all()
+    for o in orders:
+        _, _, _, _, applied_promotions = recalculate_order_totals(db, o)
+        o.applied_promotions = applied_promotions
+        coupon_code = None
+        if o.coupon_id:
+            coupon = db.query(Coupon).filter(Coupon.id == o.coupon_id).first()
+            if coupon:
+                coupon_code = coupon.code
+        o.coupon_code = coupon_code
+    return orders
+
+
+@router.post("/orders/{order_id}/apply-coupon", response_model=OrderResponse, dependencies=[cashier_dependency])
+def apply_coupon(order_id: int, payload: dict, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.status in {"paid", "cancelled"}:
+        raise HTTPException(status_code=400, detail="Cannot modify a closed order")
+        
+    code = str(payload.get("code", "")).strip().upper()
+    coupon = db.query(Coupon).filter(func.upper(Coupon.code) == code).first()
+    if not coupon or not coupon.is_active:
+        raise HTTPException(status_code=400, detail="Invalid or inactive coupon code")
+        
+    order.coupon_id = coupon.id
+    db.commit()
+    db.refresh(order)
+    _, _, _, _, applied_promotions = recalculate_order_totals(db, order)
+    order.applied_promotions = applied_promotions
+    order.coupon_code = coupon.code
+    return order
+
+@router.post("/orders/{order_id}/remove-coupon", response_model=OrderResponse, dependencies=[cashier_dependency])
+def remove_coupon(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.status in {"paid", "cancelled"}:
+        raise HTTPException(status_code=400, detail="Cannot modify a closed order")
+        
+    order.coupon_id = None
+    db.commit()
+    db.refresh(order)
+    _, _, _, _, applied_promotions = recalculate_order_totals(db, order)
+    order.applied_promotions = applied_promotions
+    order.coupon_code = None
+    return order
 
 @router.post("/orders", response_model=OrderResponse)
 async def create_cashier_order(order_in: OrderCreate, db: Session = Depends(get_db), current_user: User = Depends(require_role(["cashier", "superadmin"]))):

@@ -47,6 +47,7 @@ const SelfOrder = () => {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [couponInput, setCouponInput] = useState('');
   const [loyaltyInfo, setLoyaltyInfo] = useState(null);
   const orderItems = useMemo(() => Object.values(order?.items || {}), [order]);
   const completedItems = orderItems.filter((item) => isCompletedStatus(item.status)).length;
@@ -515,6 +516,41 @@ const SelfOrder = () => {
       setBusy(false);
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not complete payment.');
+      setBusy(false);
+    }
+  };
+
+  const applyCoupon = async () => {
+    if (!order?.id || !couponInput.trim()) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const response = await api.post(`/self-order/orders/${order.id}/apply-coupon`, {
+        code: couponInput.trim()
+      });
+      setOrder(response.data);
+      setMessage('Coupon applied successfully!');
+      setCouponInput('');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to apply coupon.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeCoupon = async () => {
+    if (!order?.id) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const response = await api.post(`/self-order/orders/${order.id}/remove-coupon`);
+      setOrder(response.data);
+      setMessage('Coupon removed.');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to remove coupon.');
+    } finally {
       setBusy(false);
     }
   };
@@ -1162,10 +1198,59 @@ const SelfOrder = () => {
                   <span className="text-secondary">Order</span>
                   <span className="font-bold">{order?.bill_number}</span>
                 </div>
+                {order?.applied_promotions && order.applied_promotions.length > 0 && (
+                  <div className="mt-2 text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
+                    Promotions applied: {order.applied_promotions.join(', ')}
+                  </div>
+                )}
+                {order?.discount_amount > 0 && (
+                  <div className="mt-2 flex justify-between text-sm text-emerald-600">
+                    <span>Discount</span>
+                    <span className="font-bold">- {formatMoney(order?.discount_amount)}</span>
+                  </div>
+                )}
                 <div className="mt-2 flex justify-between text-sm">
                   <span className="text-secondary">Total due</span>
                   <span className="font-black text-primary">{formatMoney(order?.total_amount)}</span>
                 </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-outline/10 bg-surface-container-lowest p-5">
+                <h3 className="font-bold text-sm mb-3">Coupons</h3>
+                {order?.coupon_code ? (
+                  <div className="flex items-center justify-between bg-emerald-50 text-emerald-800 px-4 py-3 rounded-xl border border-emerald-200">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[18px]">sell</span>
+                      <span className="font-black uppercase tracking-wider">{order.coupon_code} applied</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={removeCoupon}
+                      disabled={busy}
+                      className="text-xs font-bold text-emerald-700 underline disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter coupon code"
+                      value={couponInput}
+                      onChange={(e) => setCouponInput(e.target.value)}
+                      className="flex-1 rounded-xl border border-outline/10 bg-surface-container px-4 py-2.5 text-sm uppercase outline-none focus:border-primary/40"
+                    />
+                    <button
+                      type="button"
+                      onClick={applyCoupon}
+                      disabled={busy || !couponInput.trim()}
+                      className="rounded-xl bg-primary px-4 py-2.5 text-sm font-black text-on-primary disabled:opacity-50"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="mt-6 grid gap-3 md:grid-cols-2">

@@ -170,6 +170,14 @@ CREATE TABLE coupons (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+CREATE TABLE coupon_targets (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    coupon_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    CONSTRAINT fk_coupon_targets_coupon FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE,
+    CONSTRAINT fk_coupon_targets_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+);
+
 CREATE TABLE promotions (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,

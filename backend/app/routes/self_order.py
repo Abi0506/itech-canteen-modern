@@ -7,7 +7,7 @@ import razorpay
 from fastapi import APIRouter, Depends, HTTPException
 from app.core.config import settings
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import or_
+from sqlalchemy.sql import or_, func
 
 from app.db.models import (
     Category,
@@ -30,6 +30,8 @@ from app.db.session import get_db
 from app.routes.websockets import manager
 from app.routes.loyalty import award_loyalty_points
 from app.db.models import LoyaltyCredit
+from app.services.pricing import recalculate_order_totals
+from app.models.schemas import ApplyCouponRequest
 
 router = APIRouter(prefix="/self-order", tags=["self_order"])
 
@@ -168,6 +170,7 @@ def _serialize_order(db: Session, order: Order | None) -> dict | None:
         "total_amount": float(order.total or 0),
         "customer": customer_info,
         "loyalty": loyalty_info,
+        "applied_promotions": getattr(order, "applied_promotions_temp", []),
     }
 
 
@@ -179,12 +182,9 @@ def _all_order_items_done(order: Order) -> bool:
     return all(item.kitchen_status == "completed" for item in items)
 
 
-def _recalculate_order(order: Order) -> None:
-    subtotal = sum((item.line_total for item in order.items), Decimal("0.00"))
-    order.subtotal = subtotal
-    order.tax_total = subtotal * TAX_RATE
-    order.discount_total = min(order.discount_total or Decimal("0.00"), subtotal)
-    order.total = max(Decimal("0.00"), order.subtotal + order.tax_total - order.discount_total)
+def _recalculate_order(db: Session, order: Order) -> None:
+    _, _, _, _, applied_promotions = recalculate_order_totals(db, order)
+    order.applied_promotions_temp = applied_promotions
 
 
 def _get_or_create_customer(db: Session, payload: dict) -> Customer:
@@ -371,7 +371,7 @@ def _sync_order_items(db: Session, order: Order, requested_items: list[dict]) ->
 
     db.flush()
     db.refresh(order)
-    _recalculate_order(order)
+    _recalculate_order(db, order)
 
 
 def _deduct_newly_confirmed_stock(db: Session, order: Order) -> None:
@@ -572,7 +572,7 @@ async def add_order_items(order_id: int, payload: dict, db: Session = Depends(ge
 
     db.flush()
     db.refresh(order)
-    _recalculate_order(order)
+    _recalculate_order(db, order)
     if order.table_session_id:
         session = db.query(TableSession).filter(TableSession.id == order.table_session_id).first()
         if session:
@@ -581,6 +581,38 @@ async def add_order_items(order_id: int, payload: dict, db: Session = Depends(ge
     db.commit()
     db.refresh(order)
     await manager.broadcast_all({"event": "cart_updated", "table_id": order.table_id, "order_id": order.id})
+    return _serialize_order(db, order)
+
+@router.post("/orders/{order_id}/apply-coupon")
+async def apply_coupon(order_id: int, payload: ApplyCouponRequest, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).with_for_update().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.status in {"paid", "cancelled"}:
+        raise HTTPException(status_code=400, detail="Cannot modify a closed order")
+        
+    coupon = db.query(Coupon).filter(func.upper(Coupon.code) == payload.code.upper().strip()).first()
+    if not coupon or not coupon.is_active:
+        raise HTTPException(status_code=400, detail="Invalid or inactive coupon code")
+        
+    order.coupon_id = coupon.id
+    db.commit()
+    db.refresh(order)
+    _recalculate_order(db, order)
+    return _serialize_order(db, order)
+
+@router.post("/orders/{order_id}/remove-coupon")
+async def remove_coupon(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).with_for_update().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.status in {"paid", "cancelled"}:
+        raise HTTPException(status_code=400, detail="Cannot modify a closed order")
+        
+    order.coupon_id = None
+    db.commit()
+    db.refresh(order)
+    _recalculate_order(db, order)
     return _serialize_order(db, order)
 
 
@@ -655,44 +687,6 @@ def get_order_status(order_id: int, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/orders/{order_id}/coupon")
-def apply_coupon(order_id: int, payload: dict, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    if order.status == "paid":
-        raise HTTPException(status_code=400, detail="Cannot apply coupon to a paid order")
-
-    code = str(payload.get("code", "")).strip().upper()
-    coupon = db.query(Coupon).filter(Coupon.code == code, Coupon.is_active == True).first()
-    if not coupon:
-        raise HTTPException(status_code=400, detail="Invalid or inactive coupon code")
-
-    today = date.today()
-    if coupon.valid_from and coupon.valid_from > today:
-        raise HTTPException(status_code=400, detail="Coupon is not active yet")
-    if coupon.valid_until and coupon.valid_until < today:
-        raise HTTPException(status_code=400, detail="Coupon has expired")
-    if coupon.max_uses and coupon.used_count >= coupon.max_uses and order.coupon_id != coupon.id:
-        raise HTTPException(status_code=400, detail="Coupon usage limit reached")
-
-    discount = order.subtotal * (coupon.value / Decimal("100.00")) if coupon.discount_type == "percent" else coupon.value
-
-    if order.coupon_id and order.coupon_id != coupon.id:
-        previous_coupon = db.query(Coupon).filter(Coupon.id == order.coupon_id).first()
-        if previous_coupon and previous_coupon.used_count > 0:
-            previous_coupon.used_count -= 1
-
-    if order.coupon_id != coupon.id:
-        coupon.used_count += 1
-
-    order.coupon_id = coupon.id
-    order.discount_total = min(discount, order.subtotal)
-    _recalculate_order(order)
-    db.commit()
-    db.refresh(order)
-    return _serialize_order(db, order)
-
 
 @router.post("/orders/{order_id}/pay")
 async def pay_order(order_id: int, payload: dict, db: Session = Depends(get_db)):
@@ -754,6 +748,11 @@ async def pay_order(order_id: int, payload: dict, db: Session = Depends(get_db))
     )
 
     order.status = "paid"
+    if order.coupon_id:
+        coupon = db.query(Coupon).filter(Coupon.id == order.coupon_id).first()
+        if coupon:
+            coupon.used_count += 1
+            
     if order.table_session_id:
         session = db.query(TableSession).filter(TableSession.id == order.table_session_id).first()
         if session:
@@ -832,6 +831,11 @@ async def verify_razorpay_payment(order_id: int, payload: dict, db: Session = De
     )
 
     order.status = "paid"
+    if order.coupon_id:
+        coupon = db.query(Coupon).filter(Coupon.id == order.coupon_id).first()
+        if coupon:
+            coupon.used_count += 1
+
     if order.table_session_id:
         session = db.query(TableSession).filter(TableSession.id == order.table_session_id).first()
         if session:

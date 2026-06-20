@@ -168,6 +168,7 @@ class OrderResponse(BaseModel):
     waiter_id: Optional[int] = None
     status: str
     coupon_id: Optional[int] = None
+    coupon_code: Optional[str] = None
     subtotal: Decimal
     tax_total: Decimal
     discount_total: Decimal
@@ -176,9 +177,13 @@ class OrderResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     items: List[OrderItemResponse] = []
+    applied_promotions: List[str] = []
 
     class Config:
         from_attributes = True
+
+class ApplyCouponRequest(BaseModel):
+    code: str
 
 # Payment Schemas
 class PaymentCreate(BaseModel):
@@ -224,6 +229,7 @@ class CouponCreate(BaseModel):
     max_uses: Optional[int] = None
     valid_from: Optional[date] = None
     valid_until: Optional[date] = None
+    target_customer_ids: List[int] = []
 
 class CouponResponse(BaseModel):
     id: int
@@ -235,6 +241,7 @@ class CouponResponse(BaseModel):
     is_active: bool
     valid_from: Optional[date] = None
     valid_until: Optional[date] = None
+    target_customer_ids: List[int] = []
 
     class Config:
         from_attributes = True

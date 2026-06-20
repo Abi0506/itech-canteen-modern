@@ -7,7 +7,7 @@ from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
 
 from app.db.session import get_db
-from app.db.models import User, Role, Customer, Coupon, Promotion, TableMaster, Floor, Order, OrderItem, Payment, AuditLog, VenueSetting, LoyaltyCredit
+from app.db.models import User, Role, Customer, Coupon, CouponTarget, Promotion, TableMaster, Floor, Order, OrderItem, Payment, AuditLog, VenueSetting, LoyaltyCredit
 from app.models.schemas import UserResponse, UserRegister, UserUpdate, CouponCreate, CouponResponse, PromotionCreate, PromotionResponse, TableResponse, FloorResponse, FloorCreate, FloorUpdate, TableCreate, TableUpdate, VenueSettingUpdate
 from app.routes.auth import require_role, is_valid_password, password_constraint_message
 from app.core.security import get_password_hash
@@ -267,7 +267,23 @@ def hard_delete_user(user_id: int, db: Session = Depends(get_db)):
 # ── Coupon Management ────────────────────────────────────────────────────────
 @router.get("/coupons", response_model=List[CouponResponse], dependencies=[admin_dependency])
 def list_coupons(db: Session = Depends(get_db)):
-    return db.query(Coupon).all()
+    coupons = db.query(Coupon).all()
+    result = []
+    for c in coupons:
+        c_dict = {
+            "id": c.id,
+            "code": c.code,
+            "discount_type": c.discount_type,
+            "value": c.value,
+            "max_uses": c.max_uses,
+            "used_count": c.used_count,
+            "is_active": c.is_active,
+            "valid_from": c.valid_from,
+            "valid_until": c.valid_until,
+            "target_customer_ids": [t.customer_id for t in c.targets]
+        }
+        result.append(c_dict)
+    return result
 
 @router.post("/coupons", response_model=CouponResponse)
 def create_coupon(coupon_in: CouponCreate, db: Session = Depends(get_db), current_user: User = Depends(require_role(["superadmin"]))):
@@ -293,7 +309,28 @@ def create_coupon(coupon_in: CouponCreate, db: Session = Depends(get_db), curren
         db.rollback()
         raise HTTPException(status_code=400, detail="Invalid coupon data. For percentage discounts, value must be between 0 and 100")
     db.refresh(new_coupon)
-    return new_coupon
+    
+    if hasattr(coupon_in, 'target_customer_ids') and coupon_in.target_customer_ids:
+        for cust_id in coupon_in.target_customer_ids:
+            target = CouponTarget(coupon_id=new_coupon.id, customer_id=cust_id)
+            db.add(target)
+        db.commit()
+        db.refresh(new_coupon)
+    
+    # Format response
+    response_data = {
+        "id": new_coupon.id,
+        "code": new_coupon.code,
+        "discount_type": new_coupon.discount_type,
+        "value": new_coupon.value,
+        "max_uses": new_coupon.max_uses,
+        "used_count": new_coupon.used_count,
+        "is_active": new_coupon.is_active,
+        "valid_from": new_coupon.valid_from,
+        "valid_until": new_coupon.valid_until,
+        "target_customer_ids": [t.customer_id for t in new_coupon.targets]
+    }
+    return response_data
 
 @router.put("/coupons/{coupon_id}", response_model=CouponResponse, dependencies=[admin_dependency])
 def update_coupon(coupon_id: int, coupon_in: CouponCreate, db: Session = Depends(get_db)):
@@ -319,7 +356,28 @@ def update_coupon(coupon_id: int, coupon_in: CouponCreate, db: Session = Depends
         db.rollback()
         raise HTTPException(status_code=400, detail="Invalid coupon update. Check discount value and validity dates")
     db.refresh(coupon)
-    return coupon
+    
+    if hasattr(coupon_in, 'target_customer_ids') and coupon_in.target_customer_ids is not None:
+        db.query(CouponTarget).filter(CouponTarget.coupon_id == coupon_id).delete()
+        for cust_id in coupon_in.target_customer_ids:
+            target = CouponTarget(coupon_id=coupon.id, customer_id=cust_id)
+            db.add(target)
+        db.commit()
+        db.refresh(coupon)
+        
+    response_data = {
+        "id": coupon.id,
+        "code": coupon.code,
+        "discount_type": coupon.discount_type,
+        "value": coupon.value,
+        "max_uses": coupon.max_uses,
+        "used_count": coupon.used_count,
+        "is_active": coupon.is_active,
+        "valid_from": coupon.valid_from,
+        "valid_until": coupon.valid_until,
+        "target_customer_ids": [t.customer_id for t in coupon.targets]
+    }
+    return response_data
 
 @router.delete("/coupons/{coupon_id}", dependencies=[admin_dependency])
 def delete_coupon(coupon_id: int, db: Session = Depends(get_db)):
