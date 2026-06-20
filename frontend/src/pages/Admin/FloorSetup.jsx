@@ -217,7 +217,7 @@ const FloorSetup = () => {
                 </div>
                 <div className="flex flex-col gap-1 w-full mt-2">
                   <a
-                    href={`http://localhost:8000/selforder/${t.qr_token}/menu`}
+                    href={`http://localhost:5173/self-order/${f.name.replace(/\s+/g, '-')}-${t.id}`}
                     target="_blank"
                     rel="noreferrer"
                     className="px-2 py-1.5 text-[10px] font-bold bg-primary-fixed text-on-primary-fixed-variant rounded hover:opacity-90 block w-full text-center"

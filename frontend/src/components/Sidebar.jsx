@@ -62,7 +62,7 @@ const Sidebar = () => {
         {user.role_name === 'superadmin' && (
           <div className="space-y-1">
             <p className="text-[10px] font-bold text-outline uppercase tracking-wider px-3 mb-2">Superadmin Panel</p>
-            <Link
+            {/* <Link
               to="/admin/dashboard"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
                 isActive('/admin/dashboard') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
@@ -70,7 +70,7 @@ const Sidebar = () => {
             >
               <LayoutDashboard size={18} />
               Dashboard
-            </Link>
+            </Link> */}
             <Link
               to="/admin/users"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${

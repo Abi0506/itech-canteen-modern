@@ -507,7 +507,7 @@ def generate_order_number(db: Session, source: str) -> str:
 
 @router.get("/tables", dependencies=[cashier_dependency])
 def list_tables(db: Session = Depends(get_db)):
-    tables = db.query(TableMaster).all()
+    tables = db.query(TableMaster).filter(TableMaster.is_active == True).all()
     result = []
     for t in tables:
         waiter_name = None
@@ -540,6 +540,8 @@ def release_table(table_id: int, db: Session = Depends(get_db)):
     for order in active_orders:
         items_count = db.query(OrderItem).filter(OrderItem.order_id == order.id).count()
         if items_count == 0 and order.status == "draft":
+            if table.current_order_id == order.id:
+                table.current_order_id = None
             db.delete(order)
             db.flush()
         else:

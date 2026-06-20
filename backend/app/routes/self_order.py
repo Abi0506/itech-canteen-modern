@@ -60,8 +60,15 @@ def _normalize_phone(phone: str | None) -> str:
     return re.sub(r"\D+", "", phone or "").strip()
 
 
-def _get_table(db: Session, table_id: int) -> TableMaster:
-    table = db.query(TableMaster).filter(TableMaster.id == table_id, TableMaster.is_active == True).first()
+def _get_table(db: Session, table_identifier: str) -> TableMaster:
+    parts = table_identifier.rsplit("-", 1)
+    if len(parts) == 2 and parts[1].isdigit():
+        table_id = int(parts[1])
+        table = db.query(TableMaster).filter(TableMaster.id == table_id, TableMaster.is_active == True).first()
+        if table:
+            return table
+
+    table = db.query(TableMaster).filter(TableMaster.table_number == table_identifier, TableMaster.is_active == True).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
     return table
@@ -466,7 +473,7 @@ def _build_menu(db: Session) -> list[dict]:
 
 
 @router.get("/menu")
-def get_menu(table_id: int, db: Session = Depends(get_db)):
+def get_menu(table_id: str, db: Session = Depends(get_db)):
     table = _get_table(db, table_id)
     session = _get_active_session(db, table.id)
     return {
@@ -478,7 +485,7 @@ def get_menu(table_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/tables/{table_id}/start")
-async def start_table_session(table_id: int, payload: dict, db: Session = Depends(get_db)):
+async def start_table_session(table_id: str, payload: dict, db: Session = Depends(get_db)):
     venue = db.query(VenueSetting).first()
     if venue and not venue.self_ordering_enabled:
         raise HTTPException(status_code=400, detail="Self-ordering is currently disabled")
@@ -514,7 +521,7 @@ async def start_table_session(table_id: int, payload: dict, db: Session = Depend
 
 
 @router.post("/tables/{table_id}/join")
-def join_table_session(table_id: int, payload: dict, db: Session = Depends(get_db)):
+def join_table_session(table_id: str, payload: dict, db: Session = Depends(get_db)):
     table = _get_table(db, table_id)
     session = _get_active_session(db, table.id)
     if not session:
