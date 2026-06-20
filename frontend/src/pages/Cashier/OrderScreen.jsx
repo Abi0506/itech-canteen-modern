@@ -195,8 +195,8 @@ const OrderScreen = () => {
 
   const handleRegisterAndAssignCustomer = async (e) => {
     e.preventDefault();
-    if (!newCustName.trim() || !newCustPhone.trim()) {
-      setError('Name and phone number are required to add a customer.');
+    if (!newCustName.trim() || !newCustPhone.trim() || !newCustEmail.trim()) {
+      setError('Name, phone number, and email are required to add a customer.');
       return;
     }
     setBusy(true);
@@ -213,7 +213,7 @@ const OrderScreen = () => {
       const regRes = await api.post('/cashier/customers', {
         name: newCustName.trim(),
         mobile_number: newCustPhone.trim(),
-        email: newCustEmail.trim() || undefined,
+        email: newCustEmail.trim(),
       });
       const newCustomer = regRes.data;
       if (!newCustomer?.id) {
@@ -541,11 +541,6 @@ const OrderScreen = () => {
   };
 
   const handleFinishOrder = async () => {
-    if (!currentOrder?.id) {
-      setError('No active bill found for this table.');
-      return;
-    }
-
     setBusy(true);
     setError('');
     setMessage('');
@@ -989,8 +984,9 @@ const OrderScreen = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-secondary uppercase mb-1">Email Address <span className="normal-case font-normal">(optional)</span></label>
+                  <label className="block text-[10px] font-bold text-secondary uppercase mb-1">Email Address</label>
                   <input
+                    required
                     type="email"
                     pattern=".*@.*"
                     title="Please include an '@' in the email address."

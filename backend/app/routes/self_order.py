@@ -29,19 +29,24 @@ from app.db.models import (
 from app.db.session import get_db
 from app.routes.websockets import manager
 from app.routes.loyalty import award_loyalty_points
+from app.services.email import send_receipt_email
 from app.db.models import LoyaltyCredit
 
 router = APIRouter(prefix="/self-order", tags=["self_order"])
 
 TAX_RATE = Decimal("0.05")
 
-def _get_razorpay_client() -> razorpay.Client:
-    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+def _get_razorpay_client(db: Session) -> razorpay.Client:
+    venue_setting = db.query(VenueSetting).first()
+    key_id = venue_setting.razorpay_key_id if venue_setting and venue_setting.razorpay_key_id else settings.RAZORPAY_KEY_ID
+    key_secret = venue_setting.razorpay_key_secret if venue_setting and venue_setting.razorpay_key_secret else settings.RAZORPAY_KEY_SECRET
+
+    if not key_id or not key_secret:
         raise HTTPException(
             status_code=503,
-            detail="Razorpay sandbox is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.",
+            detail="Razorpay is not configured. Please contact the administrator.",
         )
-    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+    return razorpay.Client(auth=(key_id, key_secret))
 
 
 
@@ -712,10 +717,12 @@ async def pay_order(order_id: int, payload: dict, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="Please wait until all items are completed by the chef before payment")
 
     payment_type = str(payload.get("payment_method", "upi")).lower()
-    if payment_type == "cash":
+    db_payment_type = "upi" if payment_type == "razorpay" else payment_type
+
+    if db_payment_type == "cash":
         raise HTTPException(status_code=400, detail="Cash payments must be handled by the cashier")
 
-    method = db.query(PaymentMethod).filter(PaymentMethod.type == payment_type, PaymentMethod.is_enabled == True).first()
+    method = db.query(PaymentMethod).filter(PaymentMethod.type == db_payment_type, PaymentMethod.is_enabled == True).first()
     if not method:
         raise HTTPException(status_code=400, detail="Payment method is unavailable")
 
@@ -723,8 +730,8 @@ async def pay_order(order_id: int, payload: dict, db: Session = Depends(get_db))
     if not receiver:
         raise HTTPException(status_code=400, detail="No active cashier or admin user is available to receive payment")
 
-    if payment_type == "upi":
-        client = _get_razorpay_client()
+    if payment_type == "upi" or payment_type == "razorpay" or payment_type == "card":
+        client = _get_razorpay_client(db)
         amount_paise = int((Decimal(str(order.total)) * Decimal("100")).to_integral_value())
         razorpay_order = client.order.create(
             {
@@ -743,7 +750,7 @@ async def pay_order(order_id: int, payload: dict, db: Session = Depends(get_db))
             "amount": float(order.total),
             "amount_paise": amount_paise,
             "currency": "INR",
-            "key_id": settings.RAZORPAY_KEY_ID,
+            "key_id": client.auth[0], # The Key ID
             "payment_method_id": method.id,
         }
 
@@ -806,7 +813,11 @@ async def verify_razorpay_payment(order_id: int, payload: dict, db: Session = De
     if not all([razorpay_order_id, razorpay_payment_id, razorpay_signature]):
         raise HTTPException(status_code=400, detail="Missing Razorpay verification details")
 
-    secret = settings.RAZORPAY_KEY_SECRET
+    venue_setting = db.query(VenueSetting).first()
+    secret = venue_setting.razorpay_key_secret if venue_setting and venue_setting.razorpay_key_secret else settings.RAZORPAY_KEY_SECRET
+    if not secret:
+        raise HTTPException(status_code=503, detail="Razorpay is not configured")
+
     msg = f"{razorpay_order_id}|{razorpay_payment_id}"
     generated_signature = hmac.new(
         secret.encode(),
@@ -857,6 +868,34 @@ async def verify_razorpay_payment(order_id: int, payload: dict, db: Session = De
 
     db.commit()
     db.refresh(order)
+
+    # Send Receipt Email
+    if order.customer_id:
+        customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
+        if customer and customer.email:
+            items_list = []
+            for itm in order.items:
+                product = db.query(Product).filter(Product.id == itm.product_id).first()
+                if product:
+                    items_list.append({
+                        "name": product.name,
+                        "quantity": itm.quantity,
+                        "price": itm.unit_price
+                    })
+            table_name = table.table_number if ('table' in locals() and table) else None
+            
+            send_receipt_email(
+                to_email=customer.email,
+                customer_name=customer.name,
+                order_number=order.order_number,
+                table_name=table_name,
+                items=items_list,
+                subtotal=order.total,
+                tax=0,
+                discount=0,
+                grand_total=order.total,
+            )
+
     serialized = _serialize_order(db, order)
     serialized["loyalty_points_awarded"] = loyalty_points_awarded
     await manager.broadcast_all({
@@ -866,3 +905,62 @@ async def verify_razorpay_payment(order_id: int, payload: dict, db: Session = De
         "table_status": "available",
     })
     return serialized
+
+
+@router.post("/orders/{order_id}/send-email")
+async def send_order_email(order_id: int, payload: dict = None, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    to_email = None
+    if payload:
+        to_email = payload.get("email")
+
+    if not to_email and order.customer_id:
+        customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
+        if customer:
+            to_email = customer.email
+
+    if not to_email:
+        raise HTTPException(status_code=400, detail="No email address available to send receipt")
+
+    items_list = []
+    for itm in order.items:
+        product = db.query(Product).filter(Product.id == itm.product_id).first()
+        if product:
+            items_list.append({
+                "name": product.name,
+                "quantity": itm.quantity,
+                "price": itm.unit_price
+            })
+
+    table_name = None
+    if order.table_id:
+        table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
+        if table:
+            table_name = table.table_number
+
+    customer_name = "Customer"
+    if order.customer_id:
+        customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
+        if customer:
+            customer_name = customer.name
+
+    try:
+        send_receipt_email(
+            to_email=to_email,
+            customer_name=customer_name,
+            order_number=order.order_number,
+            table_name=table_name,
+            items=items_list,
+            subtotal=order.total,
+            tax=0,
+            discount=0,
+            grand_total=order.total,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+
+    return {"success": True, "message": f"Receipt email sent to {to_email}"}
+

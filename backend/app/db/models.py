@@ -373,4 +373,6 @@ class VenueSetting(Base):
     tax_label = Column(VARCHAR(20), nullable=False, default="GST")
     receipt_footer_text = Column(VARCHAR(255), nullable=True)
     kds_auto_advance = Column(TINYINT, nullable=False, default=0)
+    razorpay_key_id = Column(VARCHAR(100), nullable=True)
+    razorpay_key_secret = Column(VARCHAR(100), nullable=True)
     updated_at = Column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())

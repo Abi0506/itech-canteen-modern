@@ -39,7 +39,9 @@ class Settings(BaseSettings):
     PRINTER_WINDOWS_SHARE: Optional[str] = None
 
     class Config:
-        env_file = str(Path(__file__).resolve().parents[2] / ".env")
+        _root_env = Path(__file__).resolve().parents[3] / ".env"
+        _backend_env = Path(__file__).resolve().parents[2] / ".env"
+        env_file = str(_root_env if _root_env.exists() else _backend_env)
         env_file_encoding = "utf-8"
         case_sensitive = True
 
