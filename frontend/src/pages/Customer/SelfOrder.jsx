@@ -438,12 +438,12 @@ const SelfOrder = () => {
   return (
     <div className="min-h-screen bg-surface text-on-surface">
       <header className="sticky top-0 z-30 border-b border-outline/10 bg-surface/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 md:px-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-5">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
               Customer Menu
             </p>
-            <h1 className="font-headline text-xl font-black md:text-2xl">
+            <h1 className="font-headline text-lg font-black md:text-xl">
               Table {table?.table_number || tableId}
             </h1>
           </div>
@@ -468,7 +468,7 @@ const SelfOrder = () => {
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-4 py-6 md:px-6">
+      <div className="mx-auto max-w-6xl px-4 py-4 md:px-5">
         {message && (
           <div className="mb-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-700">
             {message}
@@ -482,18 +482,18 @@ const SelfOrder = () => {
         )}
 
         {screen !== 'review' && screen !== 'awaiting_payment' && screen !== 'payment' && screen !== 'confirmed' && !showAuth && (
-          <div className="space-y-6">
+          <div className="space-y-5">
             <main>
-              <div className="mb-6 rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-6">
-                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div className="mb-5 rounded-3xl border border-outline/10 bg-surface-container-low p-4 md:p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-primary">
                       {screen === 'browse' ? 'Browse freely — no login required' : 'Build your order'}
                     </p>
-                    <h2 className="mt-1 font-headline text-3xl font-black">
+                    <h2 className="mt-1 font-headline text-2xl font-black md:text-[2rem]">
                       {screen === 'browse' ? 'What are you craving?' : 'Choose your items'}
                     </h2>
-                    <p className="mt-2 max-w-2xl text-sm text-secondary">
+                    <p className="mt-2 max-w-2xl text-xs text-secondary md:text-sm">
                       {screen === 'browse'
                         ? 'The complete menu is below, grouped by category. You only enter your details when you decide to order.'
                         : hasConfirmedItems
@@ -501,28 +501,28 @@ const SelfOrder = () => {
                           : 'Change quantities as much as you like. Nothing is deducted until you confirm the order.'}
                     </p>
                   </div>
-                  <div className="relative w-full md:max-w-sm">
+                  <div className="relative w-full md:max-w-xs">
                     <Search
                       className="absolute left-3 top-1/2 -translate-y-1/2 text-outline"
-                      size={17}
+                      size={16}
                     />
                     <input
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
                       placeholder="Search the menu"
-                      className="w-full rounded-2xl border border-outline/10 bg-surface-container-lowest py-3 pl-10 pr-4 text-sm outline-none focus:border-primary/40"
+                      className="w-full rounded-2xl border border-outline/10 bg-surface-container-lowest py-2.5 pl-10 pr-4 text-sm outline-none focus:border-primary/40"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="mb-6 flex flex-wrap gap-2 rounded-3xl border border-outline/10 bg-surface-container-low p-3">
+              <div className="mb-5 flex flex-wrap gap-2 rounded-3xl border border-outline/10 bg-surface-container-low p-2.5">
                 {customerTabs.map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
                     onClick={() => setCustomerTab(tab.id)}
-                    className={`rounded-2xl px-4 py-2 text-sm font-black transition-colors ${
+                    className={`rounded-2xl px-3.5 py-2 text-xs font-black transition-colors md:text-sm ${
                       customerTab === tab.id
                         ? 'bg-primary text-on-primary'
                         : 'bg-surface-container-lowest text-secondary hover:text-primary'
@@ -534,21 +534,21 @@ const SelfOrder = () => {
               </div>
 
               {customerTab === 'orders' && (
-                <div className="mb-6 rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-6">
-                  <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="mb-5 rounded-3xl border border-outline/10 bg-surface-container-low p-4 md:p-5">
+                  <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
                         Orders
                       </p>
-                      <h3 className="mt-1 font-headline text-2xl font-black">Placed items</h3>
+                      <h3 className="mt-1 font-headline text-xl font-black">Placed items</h3>
                     </div>
-                    <span className="rounded-full bg-surface-container-high px-3 py-1 text-xs font-bold text-secondary">
+                    <span className="rounded-full bg-surface-container-high px-2.5 py-1 text-[11px] font-bold text-secondary">
                       {placedOrderItems.length} items
                     </span>
                   </div>
                   <div className="space-y-3">
                     {placedOrderItems.length === 0 ? (
-                      <div className="rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-4 text-sm text-secondary">
+                      <div className="rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-3 text-sm text-secondary">
                         No placed items yet. Switch to Items or Cart to add something first.
                       </div>
                     ) : (
@@ -578,7 +578,7 @@ const SelfOrder = () => {
                       ))
                     )}
                   </div>
-                  <div className="mt-5 rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-secondary">
+                  <div className="mt-4 rounded-2xl border border-primary/10 bg-primary/5 px-4 py-2.5 text-sm text-secondary">
                     Payment stays locked until every placed item is prepared.
                   </div>
                   <button
@@ -591,7 +591,7 @@ const SelfOrder = () => {
                       setScreen('awaiting_payment');
                     }}
                     disabled={!placedOrderItems.length}
-                    className={`mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 font-black transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    className={`mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 font-black transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                       canProceedToPayment
                         ? 'bg-primary text-on-primary'
                         : 'border border-outline/10 bg-surface-container-lowest text-secondary'
@@ -603,7 +603,7 @@ const SelfOrder = () => {
                   <button
                     type="button"
                     onClick={() => setCustomerTab('items')}
-                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-outline/10 bg-surface-container-lowest px-5 py-4 font-black text-secondary"
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-3 font-black text-secondary"
                   >
                     Back to menu
                   </button>
@@ -611,21 +611,21 @@ const SelfOrder = () => {
               )}
 
               {customerTab === 'cart' && (
-                <div className="mb-6 rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-6">
-                  <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="mb-5 rounded-3xl border border-outline/10 bg-surface-container-low p-4 md:p-5">
+                  <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
                         Cart
                       </p>
-                      <h3 className="mt-1 font-headline text-2xl font-black">Current cart</h3>
+                      <h3 className="mt-1 font-headline text-xl font-black">Current cart</h3>
                     </div>
-                    <span className="rounded-full bg-surface-container-high px-3 py-1 text-xs font-bold text-secondary">
+                    <span className="rounded-full bg-surface-container-high px-2.5 py-1 text-[11px] font-bold text-secondary">
                       {cartItems.length} items
                     </span>
                   </div>
 
                   {cartItems.length === 0 ? (
-                    <div className="rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-4 text-sm text-secondary">
+                    <div className="rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-3 text-sm text-secondary">
                       Your cart is empty. Switch to Items and add something to order.
                     </div>
                   ) : (
@@ -633,7 +633,7 @@ const SelfOrder = () => {
                       {cartItems.map((item) => (
                         <div
                           key={item.id}
-                          className="flex items-center justify-between gap-4 rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-3"
+                          className="flex items-center justify-between gap-3 rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-3"
                         >
                           <div>
                             <p className="font-semibold text-on-surface">{item.name}</p>
@@ -645,7 +645,7 @@ const SelfOrder = () => {
                             <button
                               type="button"
                               onClick={() => changeQuantity(item.id, -1)}
-                              className="rounded-full bg-surface-container-high px-3 py-2 text-sm font-bold text-secondary"
+                              className="rounded-full bg-surface-container-high px-2.5 py-2 text-sm font-bold text-secondary"
                             >
                               -
                             </button>
@@ -653,7 +653,7 @@ const SelfOrder = () => {
                             <button
                               type="button"
                               onClick={() => changeQuantity(item.id, 1)}
-                              className="rounded-full bg-primary px-3 py-2 text-sm font-bold text-on-primary"
+                              className="rounded-full bg-primary px-2.5 py-2 text-sm font-bold text-on-primary"
                             >
                               +
                             </button>
@@ -663,7 +663,7 @@ const SelfOrder = () => {
                     </div>
                   )}
 
-                  <div className="mt-5 rounded-2xl bg-surface-container-high p-4 text-sm">
+                  <div className="mt-4 rounded-2xl bg-surface-container-high p-4 text-sm">
                     <div className="flex justify-between">
                       <span className="text-secondary">Subtotal</span>
                       <span className="font-bold">{formatMoney(subtotal)}</span>
@@ -682,7 +682,7 @@ const SelfOrder = () => {
                     type="button"
                     onClick={confirmOrder}
                     disabled={busy || cartItems.length === 0}
-                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 font-black text-on-primary disabled:opacity-50"
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
                   >
                     <CheckCircle2 size={18} />
                     {busy ? 'Placing order...' : hasConfirmedItems ? 'Place add-on order' : 'Place order'}
@@ -691,7 +691,7 @@ const SelfOrder = () => {
               )}
 
               {customerTab === 'items' && (
-                <div className="space-y-8 pb-28">
+                <div className="space-y-6 pb-24">
                 {visibleMenu.map((category) => (
                   <section
                     id={`category-${category.id}`}
@@ -703,7 +703,7 @@ const SelfOrder = () => {
                         className="h-4 w-4 rounded-full"
                         style={{ backgroundColor: category.color || '#f59e0b' }}
                       />
-                      <h3 className="font-headline text-2xl font-black">{category.name}</h3>
+                      <h3 className="font-headline text-xl font-black">{category.name}</h3>
                       <div className="h-px flex-1 bg-outline/10" />
                     </div>
                     <div className="overflow-hidden rounded-3xl border border-outline/10 bg-surface-container-low">
@@ -715,47 +715,47 @@ const SelfOrder = () => {
                         return (
                           <article
                             key={item.id}
-                            className={`flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between ${
+                            className={`flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between ${
                               index > 0 ? 'border-t border-outline/10' : ''
                             }`}
                           >
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
-                                <h4 className="font-headline text-lg font-bold">{item.name}</h4>
+                                <h4 className="font-headline text-base font-bold md:text-lg">{item.name}</h4>
                                 {soldOut && (
                                   <span className="rounded-full bg-error-container px-2 py-1 text-[10px] font-black uppercase text-error">
                                     Sold out
                                   </span>
                                 )}
                               </div>
-                              <p className="mt-1 text-sm text-secondary">
+                              <p className="mt-1 text-xs text-secondary md:text-sm">
                                 {item.description || 'Freshly prepared to order.'}
                               </p>
-                              <p className="mt-2 font-black text-primary">{formatMoney(item.price)}</p>
+                              <p className="mt-2 text-sm font-black text-primary md:text-base">{formatMoney(item.price)}</p>
                             </div>
 
                             {screen === 'order' && (
-                              <div className="flex shrink-0 items-center gap-3">
+                              <div className="flex shrink-0 items-center gap-2">
                                 <button
                                   type="button"
                                   onClick={() => changeQuantity(item.id, -1)}
                                   disabled={quantity <= minimum}
-                                  className="flex h-11 w-11 items-center justify-center rounded-full border border-outline/10 bg-surface-container-lowest disabled:cursor-not-allowed disabled:opacity-30"
+                                  className="flex h-9 w-9 items-center justify-center rounded-full border border-outline/10 bg-surface-container-lowest disabled:cursor-not-allowed disabled:opacity-30"
                                   aria-label={`Remove one ${item.name}`}
                                 >
-                                  <Minus size={16} />
+                                  <Minus size={14} />
                                 </button>
-                                <div className="min-w-10 text-center">
-                                  <p className="text-lg font-black">{quantity}</p>
+                                <div className="min-w-8 text-center">
+                                  <p className="text-base font-black">{quantity}</p>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => changeQuantity(item.id, 1)}
                                   disabled={soldOut}
-                                  className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-on-primary disabled:cursor-not-allowed disabled:opacity-30"
+                                  className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-on-primary disabled:cursor-not-allowed disabled:opacity-30"
                                   aria-label={`Add one ${item.name}`}
                                 >
-                                  <Plus size={16} />
+                                  <Plus size={14} />
                                 </button>
                               </div>
                             )}
@@ -772,7 +772,7 @@ const SelfOrder = () => {
         )}
 
         {screen === 'review' && (
-          <main className="mx-auto max-w-3xl pb-10">
+          <main className="mx-auto max-w-2xl pb-8">
             <button
               type="button"
               onClick={() => setScreen('order')}
@@ -781,11 +781,11 @@ const SelfOrder = () => {
               <ChevronLeft size={17} />
               Back to menu
             </button>
-            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
+            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-4 md:p-6">
               <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
                 Review order
               </p>
-              <h2 className="mt-2 font-headline text-3xl font-black">Confirm your items</h2>
+              <h2 className="mt-2 font-headline text-2xl font-black md:text-[2rem]">Confirm your items</h2>
               <p className="mt-2 text-sm text-secondary">
                 Inventory is deducted only when you press confirm. After that, these quantities
                 cannot be reduced, but you can return and add more.
@@ -852,7 +852,7 @@ const SelfOrder = () => {
                 type="button"
                 onClick={confirmOrder}
                 disabled={busy || cartItems.length === 0}
-                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 font-black text-on-primary disabled:opacity-50"
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
               >
                 <CheckCircle2 size={18} />
                 {busy ? 'Confirming...' : hasConfirmedItems ? 'Confirm add-on items' : 'Confirm order'}
@@ -862,12 +862,12 @@ const SelfOrder = () => {
         )}
 
         {screen === 'awaiting_payment' && (
-          <main className="mx-auto max-w-2xl py-8">
-            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10">
+          <main className="mx-auto max-w-2xl py-6">
+            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
               <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
                 Waiting for chef
               </p>
-              <h2 className="mt-2 font-headline text-3xl font-black">Are all items done?</h2>
+              <h2 className="mt-2 font-headline text-2xl font-black md:text-[2rem]">Are all items done?</h2>
               <p className="mt-3 text-sm text-secondary">
                 Payment is locked until the chef finishes every item for this table. We will move
                 you to payment as soon as everything is marked done.
@@ -926,7 +926,7 @@ const SelfOrder = () => {
                   }
                 }}
                 disabled={!canProceedToPayment}
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-5 py-4 font-black text-primary transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 font-black text-primary transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <CheckCircle2 size={18} />
                 {canProceedToPayment ? 'Proceed to payment' : 'Payment locked until all items are done'}
@@ -936,7 +936,7 @@ const SelfOrder = () => {
                 type="button"
                 onClick={() => checkKitchenStatus()}
                 disabled={statusChecking}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 font-black text-on-primary disabled:opacity-50"
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
               >
                 {statusChecking ? 'Checking...' : 'Check kitchen status'}
               </button>
@@ -948,7 +948,7 @@ const SelfOrder = () => {
                   setError('');
                   setMessage('');
                 }}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-outline/10 bg-surface-container-lowest px-5 py-4 font-black text-secondary"
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-3 font-black text-secondary"
               >
                 Return to order
               </button>
@@ -957,12 +957,12 @@ const SelfOrder = () => {
         )}
 
         {screen === 'payment' && (
-          <main className="mx-auto max-w-2xl py-8">
-            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10">
+          <main className="mx-auto max-w-2xl py-6">
+            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
               <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
                 Secure payment
               </p>
-              <h2 className="mt-2 font-headline text-3xl font-black">Choose a payment method</h2>
+              <h2 className="mt-2 font-headline text-2xl font-black md:text-[2rem]">Choose a payment method</h2>
               <p className="mt-3 text-sm text-secondary">
                 All items are done. Please complete payment to close the table bill.
               </p>
@@ -1016,7 +1016,7 @@ const SelfOrder = () => {
                 type="button"
                 onClick={payForOrder}
                 disabled={busy || !canProceedToPayment}
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 font-black text-on-primary disabled:opacity-50"
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
               >
                 <CheckCircle2 size={18} />
                 {busy ? 'Processing payment...' : 'Pay now'}
@@ -1026,15 +1026,15 @@ const SelfOrder = () => {
         )}
 
         {screen === 'confirmed' && (
-          <main className="mx-auto max-w-2xl py-8 text-center">
-            <div className="rounded-3xl border border-emerald-500/20 bg-surface-container-low p-7 md:p-10">
+          <main className="mx-auto max-w-2xl py-6 text-center">
+            <div className="rounded-3xl border border-emerald-500/20 bg-surface-container-low p-5 md:p-7">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-700">
                 <CheckCircle2 size={34} />
               </div>
               <p className="mt-5 text-[10px] font-black uppercase tracking-[0.28em] text-emerald-700">
                 Table released
               </p>
-              <h2 className="mt-2 font-headline text-3xl font-black">Payment complete</h2>
+              <h2 className="mt-2 font-headline text-2xl font-black md:text-[2rem]">Payment complete</h2>
               <p className="mt-3 text-sm text-secondary">
                 Your payment is complete, the bill is closed, and the table has been released
                 back to available status.
@@ -1065,17 +1065,17 @@ const SelfOrder = () => {
       </div>
 
       {screen === 'order' && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-outline/10 bg-surface/95 p-3 backdrop-blur">
-          <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 rounded-2xl bg-surface-container-high px-4 py-3">
+        <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-outline/10 bg-surface/95 p-2.5 backdrop-blur">
+          <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 rounded-2xl bg-surface-container-high px-4 py-2.5">
             <div>
               <p className="text-xs font-bold text-secondary">{totalUnits} items</p>
-              <p className="font-headline text-xl font-black">{formatMoney(subtotal)}</p>
+              <p className="font-headline text-lg font-black">{formatMoney(subtotal)}</p>
             </div>
             <button
               type="button"
               onClick={() => setScreen('review')}
               disabled={cartItems.length === 0}
-              className="inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-black text-on-primary disabled:opacity-40"
+              className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-black text-on-primary disabled:opacity-40"
             >
               <ShoppingBag size={17} />
               View Cart
@@ -1086,13 +1086,13 @@ const SelfOrder = () => {
 
       {showAuth && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4">
-          <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface p-5 shadow-2xl sm:rounded-3xl sm:p-7">
+          <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface p-4 shadow-2xl sm:rounded-3xl sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
                   Place an order
                 </p>
-                <h2 className="mt-2 font-headline text-2xl font-black">
+                <h2 className="mt-2 font-headline text-xl font-black md:text-2xl">
                       {sessionActive ? 'Join this table order' : authStep === 'phone' ? 'Enter phone number' : 'Your details'}
                 </h2>
               </div>
@@ -1133,7 +1133,7 @@ const SelfOrder = () => {
                 <button
                   type="submit"
                   disabled={busy || sessionPin.length !== 4}
-                  className="w-full rounded-2xl bg-primary px-4 py-4 font-black text-on-primary disabled:opacity-50"
+                  className="w-full rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
                 >
                   {busy ? 'Joining...' : 'Join and order'}
                 </button>
@@ -1160,7 +1160,7 @@ const SelfOrder = () => {
                   <button
                     type="submit"
                     disabled={busy}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-4 font-black text-on-primary disabled:opacity-50"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
                   >
                     <UserPlus size={18} />
                     {busy ? 'Checking...' : 'Continue'}
@@ -1213,14 +1213,14 @@ const SelfOrder = () => {
                     <button
                       type="button"
                       onClick={() => setAuthStep('phone')}
-                      className="inline-flex w-1/3 items-center justify-center gap-2 rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-4 font-black text-secondary"
+                      className="inline-flex w-1/3 items-center justify-center gap-2 rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-3 font-black text-secondary"
                     >
                       Back
                     </button>
                     <button
                       type="submit"
                       disabled={busy}
-                      className="inline-flex w-2/3 items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-4 font-black text-on-primary disabled:opacity-50"
+                      className="inline-flex w-2/3 items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
                     >
                       <UserPlus size={18} />
                       {busy ? 'Starting...' : 'Create account and continue'}

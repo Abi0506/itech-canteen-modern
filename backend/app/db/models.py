@@ -28,6 +28,18 @@ class User(Base):
 
     role = relationship("Role", back_populates="users")
 
+# ─── Password Reset Tokens ───────────────────────────────────────────────────
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    token = Column(VARCHAR(128), nullable=False, unique=True, index=True)
+    expires_at = Column(TIMESTAMP, nullable=False)
+    used_at = Column(TIMESTAMP, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+
+    user = relationship("User")
+
 # ─── Customers ───────────────────────────────────────────────────────────────
 class Customer(Base):
     __tablename__ = "customers"
