@@ -400,9 +400,18 @@ def _finalize_order_payment(
     if order.table_id:
         table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
         if table:
-            table.current_status = "reserved"
-            table.current_waiter_id = current_user.id if current_user else table.current_waiter_id
-            table.current_order_id = order.id
+            if order.table_session_id:
+                session = db.query(TableSession).filter(TableSession.id == order.table_session_id).first()
+                if session and session.status == 'active':
+                    session.status = 'closed'
+                    session.closed_at = datetime.utcnow()
+                table.current_status = "available"
+                table.current_order_id = None
+                table.current_waiter_id = None
+            else:
+                table.current_status = "reserved"
+                table.current_waiter_id = current_user.id if current_user else table.current_waiter_id
+                table.current_order_id = order.id
 
     # Award loyalty points based on order total
     loyalty_points_awarded = 0
@@ -423,7 +432,7 @@ def _finalize_order_payment(
         manager.broadcast_sync({
             "event": "table_status_changed",
             "table_id": order.table_id,
-            "status": "reserved",
+            "status": table.current_status if table else "reserved",
         })
 
     return {
@@ -480,9 +489,10 @@ def _create_razorpay_checkout_order(
 
 def generate_order_number(db: Session, source: str) -> str:
     prefix = "C" if source == "cashier" else "S"
-    date_str = datetime.utcnow().strftime("%y%m%d")
-    # count orders today
-    today_start = datetime.combine(date.today(), datetime.min.time())
+    now = datetime.utcnow()
+    date_str = now.strftime("%y%m%d")
+    # count orders today (UTC)
+    today_start = datetime.combine(now.date(), datetime.min.time())
     count = db.query(Order).filter(Order.created_at >= today_start).count()
     return f"{prefix}{date_str}{count + 1:04d}"
 
@@ -518,8 +528,13 @@ def release_table(table_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Table not found")
 
     active_orders = _get_active_table_orders(db, table_id)
-    if active_orders:
-        raise HTTPException(status_code=400, detail="Settle all drafts for this table before releasing it.")
+    for order in active_orders:
+        items_count = db.query(OrderItem).filter(OrderItem.order_id == order.id).count()
+        if items_count == 0 and order.status == "draft":
+            db.delete(order)
+            db.flush()
+        else:
+            raise HTTPException(status_code=400, detail="Settle all drafts for this table before releasing it.")
 
     table_session = (
         db.query(TableSession)
@@ -623,28 +638,39 @@ async def create_cashier_order(order_in: OrderCreate, db: Session = Depends(get_
             customer = db.query(Customer).filter(Customer.id == int(order_in.customer_id)).first()
             if not customer:
                 raise HTTPException(status_code=404, detail="Customer not found")
-        order_num = generate_order_number(db, "cashier")
-        active_order = Order(
-            order_number=order_num,
-            source="cashier",
-            table_id=order_in.table_id,
-            customer_id=customer_id,
-            pos_session_id=pos_session.id,
-            placed_by_user_id=current_user.id,
-            waiter_id=current_user.id if order_in.table_id else None,
-            status="draft",
-            subtotal=Decimal("0.00"),
-            tax_total=Decimal("0.00"),
-            discount_total=Decimal("0.00"),
-            total=Decimal("0.00"),
-            notes=order_in.notes,
-        )
-        db.add(active_order)
-        db.flush()
-        if table:
-            table.current_order_id = active_order.id
-            table.current_status = "occupied"
-            table.current_waiter_id = current_user.id
+        try:
+            order_num = generate_order_number(db, "cashier")
+            active_order = Order(
+                order_number=order_num,
+                source="cashier",
+                table_id=order_in.table_id,
+                customer_id=customer_id,
+                pos_session_id=pos_session.id,
+                placed_by_user_id=current_user.id,
+                waiter_id=current_user.id if order_in.table_id else None,
+                status="draft",
+                subtotal=Decimal("0.00"),
+                tax_total=Decimal("0.00"),
+                discount_total=Decimal("0.00"),
+                total=Decimal("0.00"),
+                notes=order_in.notes,
+            )
+            db.add(active_order)
+            db.flush()
+            if table:
+                table.current_order_id = active_order.id
+                table.current_status = "occupied"
+                table.current_waiter_id = current_user.id
+            db.commit()
+        except Exception:
+            db.rollback()
+            active_order = None
+            if table:
+                db.refresh(table)
+                if table.current_order_id:
+                    active_order = db.query(Order).filter(Order.id == table.current_order_id).first()
+            if not active_order:
+                raise HTTPException(status_code=500, detail="Failed to create order due to concurrent access.")
     else:
         if order_in.notes:
             active_order.notes = order_in.notes
@@ -778,7 +804,7 @@ def get_current_table_order(
     order = None
     if table.current_order_id:
         order = db.query(Order).filter(Order.id == table.current_order_id).first()
-    if order is None:
+    if order is None and table.current_status != 'available':
         order = (
             db.query(Order)
             .filter(Order.table_id == table_id, Order.status.in_(["draft", "sent_to_kitchen", "paid"]))
@@ -786,49 +812,7 @@ def get_current_table_order(
             .first()
         )
     if order is None:
-        # Find open POS session
-        pos_session = db.query(PosSession).filter(PosSession.user_id == current_user.id, PosSession.status == 'open').first()
-        if not pos_session:
-            pos_session = PosSession(
-                user_id=current_user.id,
-                status='open',
-                opening_cash=Decimal("0.00")
-            )
-            db.add(pos_session)
-            db.flush()
-
-        customer_id = _get_or_create_walk_in_customer_id(db)
-        order_num = generate_order_number(db, "cashier")
-        order = Order(
-            order_number=order_num,
-            source="cashier",
-            table_id=table_id,
-            customer_id=customer_id,
-            pos_session_id=pos_session.id,
-            placed_by_user_id=current_user.id,
-            waiter_id=current_user.id,
-            status="draft",
-            subtotal=Decimal("0.00"),
-            tax_total=Decimal("0.00"),
-            discount_total=Decimal("0.00"),
-            total=Decimal("0.00"),
-        )
-        db.add(order)
-        db.flush()
-
-    # Block the table (set to occupied, set current_order_id and current_waiter_id)
-    table.current_status = 'occupied'
-    table.current_order_id = order.id
-    table.current_waiter_id = current_user.id
-    db.commit()
-    db.refresh(order)
-
-    # Broadcast via WebSocket
-    manager.broadcast_sync({
-        "event": "table_status_changed",
-        "table_id": table_id,
-        "status": "occupied"
-    })
+        raise HTTPException(status_code=404, detail="No active order for this table")
 
     return _serialize_order(order, db)
 

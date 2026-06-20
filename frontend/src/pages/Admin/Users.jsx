@@ -8,6 +8,7 @@ const Users = () => {
   const [data, setData] = useState({ staff: [], customers: [] });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('staff');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Add staff modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -275,23 +276,42 @@ const Users = () => {
 
       {/* Customer Tab */}
       {tab === 'customers' && (
-        <div className="overflow-x-auto bg-surface-container-low border border-outline/10 rounded-2xl">
+        <div className="space-y-4">
+          <div className="flex justify-between items-center bg-surface-container-low border border-outline/10 p-4 rounded-2xl">
+            <h2 className="font-headline font-bold text-lg text-on-surface">Customer Directory</h2>
+            <input
+              type="text"
+              placeholder="Search by name, email, or mobile..."
+              className="w-full max-w-md p-2 bg-surface border border-outline/10 rounded-lg text-sm"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="overflow-x-auto bg-surface-container-low border border-outline/10 rounded-2xl">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-outline/10 text-outline text-xs uppercase tracking-wider">
                 <th className="p-4 font-bold">Name</th>
                 <th className="p-4 font-bold">Mobile</th>
                 <th className="p-4 font-bold">Email</th>
+                <th className="p-4 font-bold text-center">Loyalty Points</th>
                 <th className="p-4 font-bold text-center">Guest?</th>
                 <th className="p-4 font-bold text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {data.customers.map((c) => (
+              {data.customers
+                .filter(c => 
+                  c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                  (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase())) || 
+                  c.mobile_number.includes(searchQuery)
+                )
+                .map((c) => (
                 <tr key={c.id} className="border-b border-outline/10 text-sm hover:bg-surface-container-high transition-colors">
                   <td className="p-4 font-bold text-on-surface">{c.name}</td>
                   <td className="p-4 text-secondary">{c.mobile_number}</td>
                   <td className="p-4 text-secondary">{c.email || 'N/A'}</td>
+                  <td className="p-4 text-center text-primary font-bold">{c.loyalty_points || 0}</td>
                   <td className="p-4 text-center">
                     {c.is_guest ? (
                       <span className="px-2 py-0.5 text-xs font-semibold rounded bg-surface-variant text-secondary">Yes</span>
@@ -311,6 +331,7 @@ const Users = () => {
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       )}
 

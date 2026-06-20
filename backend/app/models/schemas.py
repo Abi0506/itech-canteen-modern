@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, validator
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
 from datetime import datetime, date, time
@@ -301,10 +301,29 @@ class VenueSettingUpdate(BaseModel):
 class FloorCreate(BaseModel):
     name: str
 
+class FloorUpdate(BaseModel):
+    name: str
+
 class TableCreate(BaseModel):
     floor_id: int
     table_number: str
     seats: int = 4
+
+    @validator('table_number')
+    def validate_table_number(cls, v):
+        if not v.isdigit():
+            raise ValueError('Table number must contain only numeric digits')
+        return v
+
+class TableUpdate(BaseModel):
+    table_number: Optional[str] = None
+    seats: Optional[int] = None
+
+    @validator('table_number')
+    def validate_table_number(cls, v):
+        if v is not None and not v.isdigit():
+            raise ValueError('Table number must contain only numeric digits')
+        return v
 
 class TableResponse(BaseModel):
     id: int

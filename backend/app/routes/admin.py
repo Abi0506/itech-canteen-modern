@@ -7,8 +7,8 @@ from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
 
 from app.db.session import get_db
-from app.db.models import User, Role, Customer, Coupon, Promotion, TableMaster, Floor, Order, OrderItem, Payment, AuditLog, VenueSetting
-from app.models.schemas import UserResponse, UserRegister, UserUpdate, CouponCreate, CouponResponse, PromotionCreate, PromotionResponse, TableResponse, FloorResponse, FloorCreate, TableCreate, VenueSettingUpdate
+from app.db.models import User, Role, Customer, Coupon, Promotion, TableMaster, Floor, Order, OrderItem, Payment, AuditLog, VenueSetting, LoyaltyCredit
+from app.models.schemas import UserResponse, UserRegister, UserUpdate, CouponCreate, CouponResponse, PromotionCreate, PromotionResponse, TableResponse, FloorResponse, FloorCreate, FloorUpdate, TableCreate, TableUpdate, VenueSettingUpdate
 from app.routes.auth import require_role, is_valid_password, password_constraint_message
 from app.core.security import get_password_hash
 import uuid
@@ -129,6 +129,9 @@ def list_users(db: Session = Depends(get_db)):
         
     # Customer list
     customers = db.query(Customer).all()
+    loyalty_credits = db.query(LoyaltyCredit).all()
+    loyalty_map = {l.customer_id: l.total_credits for l in loyalty_credits}
+
     cust_list = []
     for c in customers:
         cust_list.append({
@@ -138,6 +141,7 @@ def list_users(db: Session = Depends(get_db)):
             "mobile_number": c.mobile_number,
             "is_guest": c.is_guest,
             "created_at": c.created_at,
+            "loyalty_points": loyalty_map.get(c.id, 0),
             "type": "customer"
         })
         
@@ -476,8 +480,32 @@ def update_venue_settings(payload: VenueSettingUpdate, db: Session = Depends(get
 @router.get("/floors", response_model=List[FloorResponse], dependencies=[admin_dependency])
 def get_floors(db: Session = Depends(get_db)):
     floors = db.query(Floor).order_by(Floor.display_order).all()
-    # Eager loading or properties will handle tables if relationships are defined
+    for floor in floors:
+        floor.tables = [t for t in floor.tables if t.is_active]
     return floors
+
+@router.put("/floors/{floor_id}", response_model=FloorResponse, dependencies=[admin_dependency])
+def update_floor(floor_id: int, floor_in: FloorUpdate, db: Session = Depends(get_db)):
+    floor = db.query(Floor).filter(Floor.id == floor_id).first()
+    if not floor:
+        raise HTTPException(status_code=404, detail="Floor not found")
+    floor.name = floor_in.name
+    db.commit()
+    db.refresh(floor)
+    floor.tables = [t for t in floor.tables if t.is_active]
+    return floor
+
+@router.delete("/floors/{floor_id}", dependencies=[admin_dependency])
+def delete_floor(floor_id: int, db: Session = Depends(get_db)):
+    floor = db.query(Floor).filter(Floor.id == floor_id).first()
+    if not floor:
+        raise HTTPException(status_code=404, detail="Floor not found")
+    active_tables = [t for t in floor.tables if t.is_active]
+    if active_tables:
+        raise HTTPException(status_code=400, detail="Cannot delete floor with active tables. Please delete them first.")
+    db.delete(floor)
+    db.commit()
+    return {"detail": "Floor deleted successfully"}
 
 @router.post("/floors", response_model=FloorResponse, dependencies=[admin_dependency])
 def create_floor(floor_in: FloorCreate, db: Session = Depends(get_db)):
@@ -513,3 +541,35 @@ def create_table(table_in: TableCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_table)
     return new_table
+
+@router.put("/tables/{table_id}", response_model=TableResponse, dependencies=[admin_dependency])
+def update_table(table_id: int, table_in: TableUpdate, db: Session = Depends(get_db)):
+    table = db.query(TableMaster).filter(TableMaster.id == table_id, TableMaster.is_active == True).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    
+    if table_in.table_number is not None:
+        if table_in.table_number != table.table_number:
+            existing = db.query(TableMaster).filter(TableMaster.table_number == table_in.table_number, TableMaster.is_active == True).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="Table number already exists")
+        table.table_number = table_in.table_number
+        
+    if table_in.seats is not None:
+        table.seats = table_in.seats
+        
+    db.commit()
+    db.refresh(table)
+    return table
+
+@router.delete("/tables/{table_id}", dependencies=[admin_dependency])
+def delete_table(table_id: int, db: Session = Depends(get_db)):
+    table = db.query(TableMaster).filter(TableMaster.id == table_id).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if table.current_status != 'available':
+        raise HTTPException(status_code=400, detail="Cannot delete table that is currently reserved or occupied.")
+    
+    table.is_active = False
+    db.commit()
+    return {"detail": "Table deleted successfully"}

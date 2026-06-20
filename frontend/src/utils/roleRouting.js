@@ -2,7 +2,7 @@ const ROLE_HOME_PATHS = {
   superadmin: '/admin/dashboard',
   admin: '/admin/dashboard',
   inventory_manager: '/inventory/dashboard',
-  cashier: '/cashier/billing',
+  cashier: '/cashier/tables',
   chef: '/kds',
   customer: '/self-order',
   user: '/self-order',
