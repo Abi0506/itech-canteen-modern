@@ -9,7 +9,7 @@ export const AuthProvider = ({ children }) => {
 
   const fetchProfile = async () => {
     try {
-      const res = await api.get('/users/profile');
+      const res = await api.get('/auth/me');
       setUser(res.data);
     } catch (err) {
       setUser(null);
@@ -28,43 +28,27 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const login = async (roll_no, password) => {
-    const res = await api.post('/auth/login', { roll_no, password });
-    const { access_token, role, roll_no: userRoll } = res.data;
+  const login = async (email, password) => {
+    const res = await api.post('/auth/login', { email, password });
+    const { access_token, role, email: userEmail } = res.data;
     
     localStorage.setItem('access_token', access_token);
     localStorage.setItem('user_role', role);
-    localStorage.setItem('roll_no', userRoll);
+    localStorage.setItem('user_email', userEmail);
     
     await fetchProfile();
-    return res.data;
-  };
-
-  const register = async (roll_no, email, phone_no, password, user_type) => {
-    await api.post('/auth/register', { roll_no, email, phone_no, password, user_type });
-  };
-
-  const loginWithGoogle = async (credential) => {
-    const res = await api.post('/auth/google', { credential });
-    const { access_token, role, roll_no: userRoll } = res.data;
-
-    localStorage.setItem('access_token', access_token);
-    localStorage.setItem('user_role', role);
-    localStorage.setItem('roll_no', userRoll);
-
-    await fetchProfile();
-    return res.data;
+    return role;
   };
 
   const logout = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user_role');
-    localStorage.removeItem('roll_no');
+    localStorage.removeItem('user_email');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, register, logout, refreshProfile: fetchProfile }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshProfile: fetchProfile }}>
       {children}
     </AuthContext.Provider>
   );

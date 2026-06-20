@@ -1,18 +1,25 @@
 from decimal import Decimal
+import uuid
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
+
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.models import (
     Category,
-    Department,
-    FoodItem,
+    Coupon,
+    Customer,
+    Floor,
+    InventoryItem,
     PaymentMethod,
-    RestaurantFloor,
-    RestaurantTable,
-    SystemControl,
+    PosSession,
+    Product,
+    Role,
+    StockMovement,
+    TableMaster,
     User,
+    VenueSetting,
 )
 from app.db.session import Base, SessionLocal, engine
 
@@ -22,9 +29,7 @@ from app.db import models  # noqa: F401
 
 def _create_database_if_needed():
     url = make_url(settings.DATABASE_URL)
-    if url.get_backend_name() != "mysql":
-        return
-    if not url.database:
+    if url.get_backend_name() != "mysql" or not url.database:
         return
 
     server_url = url.set(database=None)
@@ -49,158 +54,243 @@ def bootstrap_database():
         _seed_demo_data()
 
 
+def _upsert_role(db, role_id: int, name: str):
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if role is None:
+        db.add(Role(id=role_id, name=name))
+    else:
+        role.name = name
+
+
+def _upsert_user(db, *, name: str, email: str, mobile_number: str, password: str, role_id: int):
+    user = db.query(User).filter(User.email == email).first()
+    hashed_password = get_password_hash(password)
+    if user is None:
+        db.add(
+            User(
+                name=name,
+                email=email,
+                mobile_number=mobile_number,
+                password_hash=hashed_password,
+                role_id=role_id,
+                is_active=True,
+            )
+        )
+    else:
+        user.name = name
+        user.mobile_number = mobile_number
+        user.password_hash = hashed_password
+        user.role_id = role_id
+        user.is_active = True
+
+
 def _seed_demo_data():
     db = SessionLocal()
     try:
-        # Core control row
-        if db.query(SystemControl).first() is None:
-            db.add(SystemControl(sales_mode="closed"))
+        demo_password = settings.BOOTSTRAP_PASSWORD
 
-        # Operational users
-        demo_users = [
+        for role_id, role_name in [
+            (1, "superadmin"),
+            (2, "cashier"),
+            (3, "inventory_manager"),
+            (4, "chef"),
+        ]:
+            _upsert_role(db, role_id, role_name)
+
+        demo_staff = [
             {
-                "roll_no": "superadmin",
-                "display_name": "Super Admin",
+                "name": "Super Admin",
                 "email": "superadmin@example.com",
-                "phone_no": "9999999999",
-                "role": "superadmin",
-                "user_type": "staff",
+                "mobile_number": "9999999999",
+                "role_id": 1,
             },
             {
-                "roll_no": "cashier01",
-                "display_name": "Cashier One",
+                "name": "Cashier One",
                 "email": "cashier@example.com",
-                "phone_no": "8888888888",
-                "role": "cashier",
-                "user_type": "staff",
+                "mobile_number": "8888888888",
+                "role_id": 2,
             },
             {
-                "roll_no": "inventory01",
-                "display_name": "Inventory Manager",
+                "name": "Inventory Manager",
                 "email": "inventory@example.com",
-                "phone_no": "7777777777",
-                "role": "inventory_manager",
-                "user_type": "staff",
+                "mobile_number": "7777777777",
+                "role_id": 3,
             },
             {
-                "roll_no": "WALKIN",
-                "display_name": "Walk-in Guest",
-                "email": "walkin@example.com",
-                "phone_no": "6666666666",
-                "role": "customer",
-                "user_type": "customer",
+                "name": "Kitchen Chef",
+                "email": "chef@example.com",
+                "mobile_number": "6666666666",
+                "role_id": 4,
             },
         ]
-        for user_data in demo_users:
-            existing = db.query(User).filter(User.roll_no == user_data["roll_no"]).first()
-            if existing is None:
-                db.add(
-                    User(
-                        password=get_password_hash(settings.BOOTSTRAP_PASSWORD),
-                        email_verified=True,
-                        bulk_order_enabled=False,
-                        favourites=[],
-                        loyalty_points=0,
-                        **user_data,
-                    )
-                )
-            else:
-                existing.email = user_data["email"]
-                existing.display_name = user_data["display_name"]
-                existing.phone_no = user_data["phone_no"]
-                existing.role = user_data["role"]
-                existing.user_type = user_data["user_type"]
-                existing.email_verified = True
+        for staff in demo_staff:
+            _upsert_user(db, password=demo_password, **staff)
 
-        # Departments
-        if db.query(Department).filter(Department.dept_name == "canteen").first() is None:
+        demo_customer = db.query(Customer).filter(Customer.mobile_number == "9000000000").first()
+        if demo_customer is None:
             db.add(
-                Department(
-                    dept_name="canteen",
-                    password=get_password_hash(settings.BOOTSTRAP_PASSWORD),
+                Customer(
+                    name="Walk-in Customer",
+                    email="customer@example.com",
+                    mobile_number="9000000000",
+                    password_hash=None,
+                    is_guest=True,
                 )
             )
 
-        # Menu categories and sample items
         category_specs = [
-            ("Breakfast", "#F59E0B"),
-            ("Snacks", "#10B981"),
-            ("Beverages", "#3B82F6"),
+            ("Breakfast", "#F59E0B", 1),
+            ("Snacks", "#10B981", 2),
+            ("Beverages", "#3B82F6", 3),
         ]
         categories = {}
-        for name, color in category_specs:
+        for name, color_hex, display_order in category_specs:
             category = db.query(Category).filter(Category.name == name).first()
             if category is None:
-                category = Category(name=name, color=color, is_active=True)
+                category = Category(
+                    name=name,
+                    color_hex=color_hex,
+                    display_order=display_order,
+                    is_active=True,
+                )
                 db.add(category)
                 db.flush()
+            else:
+                category.color_hex = color_hex
+                category.display_order = display_order
+                category.is_active = True
             categories[name] = category
 
-        item_specs = [
-            ("Idli Plate", "Breakfast", Decimal("40.00"), Decimal("35.00"), "plate", Decimal("0.00"), 30),
-            ("Samosa", "Snacks", Decimal("20.00"), Decimal("18.00"), "piece", Decimal("0.00"), 50),
-            ("Tea", "Beverages", Decimal("10.00"), Decimal("10.00"), "cup", Decimal("0.00"), 100),
+        product_specs = [
+            ("Idli Plate", "Breakfast", Decimal("40.00"), "plate", Decimal("0.00"), True, 30),
+            ("Samosa", "Snacks", Decimal("20.00"), "piece", Decimal("0.00"), True, 50),
+            ("Tea", "Beverages", Decimal("10.00"), "cup", Decimal("0.00"), True, 100),
         ]
-        for name, category_name, price, cash_price, unit, tax_rate, qty in item_specs:
-            existing = db.query(FoodItem).filter(FoodItem.name == name).first()
-            if existing is None:
-                db.add(
-                    FoodItem(
-                        category_id=categories[category_name].id,
-                        name=name,
-                        description=name,
-                        price=price,
-                        cash_price=cash_price,
-                        unit_of_measure=unit,
-                        tax_rate=tax_rate,
-                        quantity_available=qty,
-                        reserved_quantity=0,
-                        is_active=True,
-                        perishable=False,
-                    )
+        products = {}
+        for name, category_name, price, uom, tax_percent, kds_visible, stock in product_specs:
+            product = db.query(Product).filter(Product.name == name).first()
+            if product is None:
+                product = Product(
+                    category_id=categories[category_name].id,
+                    name=name,
+                    price=price,
+                    uom=uom,
+                    tax_percent=tax_percent,
+                    description=name,
+                    image_url=None,
+                    kds_visible=kds_visible,
+                    is_active=True,
                 )
+                db.add(product)
+                db.flush()
+            else:
+                product.category_id = categories[category_name].id
+                product.price = price
+                product.uom = uom
+                product.tax_percent = tax_percent
+                product.description = name
+                product.kds_visible = kds_visible
+                product.is_active = True
+            products[name] = product
 
-        # Dining layout
-        floor = db.query(RestaurantFloor).filter(RestaurantFloor.name == "Main Hall").first()
+            inv = db.query(InventoryItem).filter(InventoryItem.product_id == product.id).first()
+            if inv is None:
+                inv = InventoryItem(
+                    product_id=product.id,
+                    sku=f"{''.join(ch for ch in name if ch.isalnum())[:8].upper()}-{product.id}",
+                    unit=uom,
+                    current_stock=Decimal(str(stock)),
+                    reorder_level=Decimal("10.00"),
+                    max_stock=Decimal(str(stock)),
+                    is_perishable=False,
+                )
+                db.add(inv)
+            else:
+                inv.current_stock = Decimal(str(stock))
+                inv.reorder_level = Decimal("10.00")
+                inv.max_stock = Decimal(str(stock))
+                inv.unit = uom
+                inv.is_perishable = False
+
+        floor = db.query(Floor).filter(Floor.name == "Main Hall").first()
         if floor is None:
-            floor = RestaurantFloor(name="Main Hall", sort_order=1, is_active=True)
+            floor = Floor(name="Main Hall", display_order=1)
             db.add(floor)
             db.flush()
+        else:
+            floor.display_order = 1
 
-        for table_number in ["T1", "T2", "T3", "T4"]:
-            if db.query(RestaurantTable).filter(
-                RestaurantTable.floor_id == floor.id,
-                RestaurantTable.table_number == table_number,
-            ).first() is None:
+        for idx, table_number in enumerate(["T1", "T2", "T3", "T4"], start=1):
+            table = db.query(TableMaster).filter(TableMaster.floor_id == floor.id, TableMaster.table_number == table_number).first()
+            if table is None:
                 db.add(
-                    RestaurantTable(
+                    TableMaster(
                         floor_id=floor.id,
                         table_number=table_number,
                         seats=4,
-                        status="available",
                         is_active=True,
+                        current_status="available",
+                        current_waiter_id=None,
+                        current_order_id=None,
+                        qr_token=str(uuid.uuid4()),
                     )
                 )
+            else:
+                table.seats = 4
+                table.is_active = True
+                table.current_status = "available"
+                if not table.qr_token:
+                    table.qr_token = str(uuid.uuid4())
 
-        # Payment methods used by the UI
-        payment_methods = [
-            ("wallet", "Wallet", None),
-            ("razorpay", "Razorpay", None),
+        for payment_type, display_name, upi_id in [
             ("cash", "Cash", None),
+            ("card", "Card", None),
             ("upi", "UPI", "canteen@upi"),
-        ]
-        for method_key, label, upi_id in payment_methods:
-            existing = db.query(PaymentMethod).filter(PaymentMethod.method_key == method_key).first()
-            if existing is None:
+            ("wallet", "Wallet", None),
+        ]:
+            method = db.query(PaymentMethod).filter(PaymentMethod.type == payment_type).first()
+            if method is None:
                 db.add(
                     PaymentMethod(
-                        method_key=method_key,
-                        label=label,
-                        upi_id=upi_id,
-                        sort_order=0,
+                        type=payment_type,
                         is_enabled=True,
+                        upi_id=upi_id,
+                        display_name=display_name,
                     )
                 )
+            else:
+                method.is_enabled = True
+                method.upi_id = upi_id
+                method.display_name = display_name
+
+        venue = db.query(VenueSetting).first()
+        if venue is None:
+            db.add(
+                VenueSetting(
+                    venue_name="Cafe Odoo",
+                    self_ordering_enabled=True,
+                    self_ordering_mode="both",
+                    self_order_lock_mode="pin",
+                    session_timeout_minutes=15,
+                    menu_background_color="#FFFFFF",
+                    menu_background_image_url=None,
+                    currency_symbol="₹",
+                    tax_label="GST",
+                    receipt_footer_text="Thank you for visiting Cafe Odoo",
+                    kds_auto_advance=False,
+                )
+            )
+        else:
+            venue.venue_name = "Cafe Odoo"
+            venue.self_ordering_enabled = True
+            venue.self_ordering_mode = "both"
+            venue.self_order_lock_mode = "pin"
+            venue.session_timeout_minutes = 15
+            venue.menu_background_color = "#FFFFFF"
+            venue.currency_symbol = "₹"
+            venue.tax_label = "GST"
+            venue.receipt_footer_text = "Thank you for visiting Cafe Odoo"
+            venue.kds_auto_advance = False
 
         db.commit()
     except Exception:

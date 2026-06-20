@@ -1,0 +1,405 @@
+class AuditLogs(Base):
+    __tablename__ = 'audit_logs'
+
+    id = Column(BIGINT, nullable=False)
+    user_id = Column(INTEGER, )
+    action = Column(VARCHAR(60) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    entity_type = Column(VARCHAR(40) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    entity_id = Column(INTEGER, nullable=False)
+    details = Column(JSON, )
+    ip_address = Column(VARCHAR(45) COLLATE "utf8mb4_unicode_ci", )
+    created_at = Column(TIMESTAMP, nullable=False)
+    # FK: ['user_id'] -> users.['id']
+
+
+class Categories(Base):
+    __tablename__ = 'categories'
+
+    id = Column(SMALLINT, nullable=False)
+    name = Column(VARCHAR(60) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    color_hex = Column(CHAR(7) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    display_order = Column(TINYINT, nullable=False)
+    is_active = Column(TINYINT, nullable=False)
+
+
+class Coupons(Base):
+    __tablename__ = 'coupons'
+
+    id = Column(INTEGER, nullable=False)
+    code = Column(VARCHAR(30) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    discount_type = Column(ENUM, nullable=False)
+    value = Column(DECIMAL(10, 2), nullable=False)
+    max_uses = Column(INTEGER, )
+    used_count = Column(INTEGER, nullable=False)
+    is_active = Column(TINYINT, nullable=False)
+    valid_from = Column(DATE, )
+    valid_until = Column(DATE, )
+    created_by = Column(INTEGER, nullable=False)
+    # FK: ['created_by'] -> users.['id']
+
+
+class Customers(Base):
+    __tablename__ = 'customers'
+
+    id = Column(INTEGER, nullable=False)
+    name = Column(VARCHAR(100) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    email = Column(VARCHAR(150) COLLATE "utf8mb4_unicode_ci", )
+    mobile_number = Column(VARCHAR(15) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    password_hash = Column(VARCHAR(255) COLLATE "utf8mb4_unicode_ci", )
+    is_guest = Column(TINYINT, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False)
+    updated_at = Column(TIMESTAMP, nullable=False)
+
+
+class Floors(Base):
+    __tablename__ = 'floors'
+
+    id = Column(TINYINT, nullable=False)
+    name = Column(VARCHAR(60) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    display_order = Column(TINYINT, nullable=False)
+
+
+class InventoryItems(Base):
+    __tablename__ = 'inventory_items'
+
+    id = Column(INTEGER, nullable=False)
+    product_id = Column(INTEGER, nullable=False)
+    sku = Column(VARCHAR(50) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    unit = Column(VARCHAR(20) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    current_stock = Column(DECIMAL(10, 2), nullable=False)
+    reorder_level = Column(DECIMAL(10, 2), nullable=False)
+    max_stock = Column(DECIMAL(10, 2), )
+    is_perishable = Column(TINYINT, nullable=False)
+    expiry_date = Column(DATE, )
+    updated_at = Column(TIMESTAMP, nullable=False)
+    # FK: ['product_id'] -> products.['id']
+
+
+class LoyaltyCredits(Base):
+    __tablename__ = 'loyalty_credits'
+
+    id = Column(INTEGER, nullable=False)
+    customer_id = Column(INTEGER, nullable=False)
+    credits_earned = Column(INTEGER, nullable=False)
+    credits_redeemed = Column(INTEGER, nullable=False)
+    total_credits = Column(INTEGER, nullable=False)
+    last_visit_at = Column(TIMESTAMP, )
+    # FK: ['customer_id'] -> customers.['id']
+
+
+class LoyaltyTransactions(Base):
+    __tablename__ = 'loyalty_transactions'
+
+    id = Column(BIGINT, nullable=False)
+    customer_id = Column(INTEGER, nullable=False)
+    order_id = Column(INTEGER, )
+    type = Column(ENUM, nullable=False)
+    amount = Column(INTEGER, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False)
+    # FK: ['customer_id'] -> customers.['id']
+    # FK: ['order_id'] -> orders.['id']
+
+
+class OrderItems(Base):
+    __tablename__ = 'order_items'
+
+    id = Column(BIGINT, nullable=False)
+    order_id = Column(INTEGER, nullable=False)
+    product_id = Column(INTEGER, nullable=False)
+    quantity = Column(DECIMAL(8, 2), nullable=False)
+    unit_price = Column(DECIMAL(10, 2), nullable=False)
+    line_discount = Column(DECIMAL(10, 2), nullable=False)
+    line_total = Column(DECIMAL(10, 2), nullable=False)
+    kitchen_status = Column(ENUM, nullable=False)
+    notes = Column(VARCHAR(255) COLLATE "utf8mb4_unicode_ci", )
+    claimed_by = Column(INTEGER, )
+    claimed_at = Column(TIMESTAMP, )
+    completed_at = Column(TIMESTAMP, )
+    # FK: ['claimed_by'] -> users.['id']
+    # FK: ['order_id'] -> orders.['id']
+    # FK: ['product_id'] -> products.['id']
+
+
+class Orders(Base):
+    __tablename__ = 'orders'
+
+    id = Column(INTEGER, nullable=False)
+    order_number = Column(VARCHAR(20) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    source = Column(ENUM, nullable=False)
+    table_id = Column(SMALLINT, )
+    table_session_id = Column(BIGINT, )
+    customer_id = Column(INTEGER, )
+    pos_session_id = Column(INTEGER, )
+    placed_by_user_id = Column(INTEGER, )
+    waiter_id = Column(INTEGER, )
+    status = Column(ENUM, nullable=False)
+    coupon_id = Column(INTEGER, )
+    subtotal = Column(DECIMAL(10, 2), nullable=False)
+    tax_total = Column(DECIMAL(10, 2), nullable=False)
+    discount_total = Column(DECIMAL(10, 2), nullable=False)
+    total = Column(DECIMAL(10, 2), nullable=False)
+    notes = Column(TEXT COLLATE "utf8mb4_unicode_ci", )
+    created_at = Column(TIMESTAMP, nullable=False)
+    updated_at = Column(TIMESTAMP, nullable=False)
+    # FK: ['coupon_id'] -> coupons.['id']
+    # FK: ['customer_id'] -> customers.['id']
+    # FK: ['pos_session_id'] -> pos_sessions.['id']
+    # FK: ['table_id'] -> tables_master.['id']
+    # FK: ['table_session_id'] -> table_sessions.['id']
+    # FK: ['placed_by_user_id'] -> users.['id']
+    # FK: ['waiter_id'] -> users.['id']
+
+
+class PaymentMethods(Base):
+    __tablename__ = 'payment_methods'
+
+    id = Column(TINYINT, nullable=False)
+    type = Column(ENUM, nullable=False)
+    is_enabled = Column(TINYINT, nullable=False)
+    upi_id = Column(VARCHAR(100) COLLATE "utf8mb4_unicode_ci", )
+    display_name = Column(VARCHAR(50) COLLATE "utf8mb4_unicode_ci", )
+
+
+class Payments(Base):
+    __tablename__ = 'payments'
+
+    id = Column(INTEGER, nullable=False)
+    order_id = Column(INTEGER, nullable=False)
+    payment_method_id = Column(TINYINT, nullable=False)
+    amount = Column(DECIMAL(10, 2), nullable=False)
+    amount_received = Column(DECIMAL(10, 2), )
+    change_due = Column(DECIMAL(10, 2), )
+    reference_code = Column(VARCHAR(100) COLLATE "utf8mb4_unicode_ci", )
+    status = Column(ENUM, nullable=False)
+    received_by = Column(INTEGER, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False)
+    # FK: ['payment_method_id'] -> payment_methods.['id']
+    # FK: ['order_id'] -> orders.['id']
+    # FK: ['received_by'] -> users.['id']
+
+
+class PinRateLimits(Base):
+    __tablename__ = 'pin_rate_limits'
+
+    id = Column(INTEGER, nullable=False)
+    table_session_id = Column(BIGINT, nullable=False)
+    ip_address = Column(VARCHAR(45) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    failed_attempts = Column(TINYINT, nullable=False)
+    locked_until = Column(TIMESTAMP, )
+    last_attempt_at = Column(TIMESTAMP, nullable=False)
+    # FK: ['table_session_id'] -> table_sessions.['id']
+
+
+class PosSessions(Base):
+    __tablename__ = 'pos_sessions'
+
+    id = Column(INTEGER, nullable=False)
+    user_id = Column(INTEGER, nullable=False)
+    status = Column(ENUM, nullable=False)
+    opening_cash = Column(DECIMAL(10, 2), nullable=False)
+    closing_cash = Column(DECIMAL(10, 2), )
+    notes = Column(VARCHAR(500) COLLATE "utf8mb4_unicode_ci", )
+    opened_at = Column(TIMESTAMP, nullable=False)
+    closed_at = Column(TIMESTAMP, )
+    # FK: ['user_id'] -> users.['id']
+
+
+class Products(Base):
+    __tablename__ = 'products'
+
+    id = Column(INTEGER, nullable=False)
+    category_id = Column(SMALLINT, nullable=False)
+    name = Column(VARCHAR(120) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    price = Column(DECIMAL(10, 2), nullable=False)
+    uom = Column(VARCHAR(20) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    tax_percent = Column(DECIMAL(5, 2), nullable=False)
+    description = Column(TEXT COLLATE "utf8mb4_unicode_ci", )
+    image_url = Column(VARCHAR(500) COLLATE "utf8mb4_unicode_ci", )
+    kds_visible = Column(TINYINT, nullable=False)
+    is_active = Column(TINYINT, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False)
+    updated_at = Column(TIMESTAMP, nullable=False)
+    # FK: ['category_id'] -> categories.['id']
+
+
+class Promotions(Base):
+    __tablename__ = 'promotions'
+
+    id = Column(INTEGER, nullable=False)
+    name = Column(VARCHAR(100) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    scope = Column(ENUM, nullable=False)
+    product_id = Column(INTEGER, )
+    min_quantity = Column(INTEGER, )
+    min_order_amount = Column(DECIMAL(10, 2), )
+    discount_type = Column(ENUM, nullable=False)
+    value = Column(DECIMAL(10, 2), nullable=False)
+    is_active = Column(TINYINT, nullable=False)
+    valid_from = Column(DATE, )
+    valid_until = Column(DATE, )
+    # FK: ['product_id'] -> products.['id']
+
+
+class PurchaseOrderItems(Base):
+    __tablename__ = 'purchase_order_items'
+
+    id = Column(INTEGER, nullable=False)
+    purchase_order_id = Column(INTEGER, nullable=False)
+    inventory_item_id = Column(INTEGER, nullable=False)
+    quantity = Column(DECIMAL(10, 2), nullable=False)
+    unit_cost = Column(DECIMAL(10, 2), nullable=False)
+    # FK: ['inventory_item_id'] -> inventory_items.['id']
+    # FK: ['purchase_order_id'] -> purchase_orders.['id']
+
+
+class PurchaseOrders(Base):
+    __tablename__ = 'purchase_orders'
+
+    id = Column(INTEGER, nullable=False)
+    supplier_id = Column(INTEGER, nullable=False)
+    status = Column(ENUM, nullable=False)
+    notes = Column(TEXT COLLATE "utf8mb4_unicode_ci", )
+    created_by = Column(INTEGER, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False)
+    received_at = Column(TIMESTAMP, )
+    # FK: ['supplier_id'] -> suppliers.['id']
+    # FK: ['created_by'] -> users.['id']
+
+
+class ReceiptLogs(Base):
+    __tablename__ = 'receipt_logs'
+
+    id = Column(INTEGER, nullable=False)
+    order_id = Column(INTEGER, nullable=False)
+    recipient_email = Column(VARCHAR(150) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    sent_at = Column(TIMESTAMP, nullable=False)
+    delivery_status = Column(ENUM, nullable=False)
+    error_message = Column(TEXT COLLATE "utf8mb4_unicode_ci", )
+    # FK: ['order_id'] -> orders.['id']
+
+
+class Roles(Base):
+    __tablename__ = 'roles'
+
+    id = Column(TINYINT, nullable=False)
+    name = Column(VARCHAR(30) COLLATE "utf8mb4_unicode_ci", nullable=False)
+
+
+class StockMovements(Base):
+    __tablename__ = 'stock_movements'
+
+    id = Column(BIGINT, nullable=False)
+    inventory_item_id = Column(INTEGER, nullable=False)
+    movement_type = Column(ENUM, nullable=False)
+    quantity = Column(DECIMAL(10, 2), nullable=False)
+    reference_order_id = Column(INTEGER, )
+    performed_by = Column(INTEGER, nullable=False)
+    note = Column(VARCHAR(255) COLLATE "utf8mb4_unicode_ci", )
+    created_at = Column(TIMESTAMP, nullable=False)
+    # FK: ['inventory_item_id'] -> inventory_items.['id']
+    # FK: ['reference_order_id'] -> orders.['id']
+    # FK: ['performed_by'] -> users.['id']
+
+
+class StockReservations(Base):
+    __tablename__ = 'stock_reservations'
+
+    id = Column(BIGINT, nullable=False)
+    order_item_id = Column(BIGINT, nullable=False)
+    product_id = Column(INTEGER, nullable=False)
+    quantity = Column(DECIMAL(10, 2), nullable=False)
+    status = Column(ENUM, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False)
+    # FK: ['order_item_id'] -> order_items.['id']
+    # FK: ['product_id'] -> products.['id']
+
+
+class Suppliers(Base):
+    __tablename__ = 'suppliers'
+
+    id = Column(INTEGER, nullable=False)
+    name = Column(VARCHAR(120) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    contact_person = Column(VARCHAR(100) COLLATE "utf8mb4_unicode_ci", )
+    mobile_number = Column(VARCHAR(15) COLLATE "utf8mb4_unicode_ci", )
+    email = Column(VARCHAR(150) COLLATE "utf8mb4_unicode_ci", )
+    address = Column(VARCHAR(255) COLLATE "utf8mb4_unicode_ci", )
+    is_active = Column(TINYINT, nullable=False)
+
+
+class TableSessions(Base):
+    __tablename__ = 'table_sessions'
+
+    id = Column(BIGINT, nullable=False)
+    table_id = Column(SMALLINT, nullable=False)
+    status = Column(ENUM, nullable=False)
+    lock_mode = Column(ENUM, nullable=False)
+    device_token = Column(CHAR(36) COLLATE "utf8mb4_unicode_ci", )
+    pin_code = Column(CHAR(4) COLLATE "utf8mb4_unicode_ci", )
+    opened_at = Column(TIMESTAMP, nullable=False)
+    closed_at = Column(TIMESTAMP, )
+    last_activity_at = Column(TIMESTAMP, nullable=False)
+    # FK: ['table_id'] -> tables_master.['id']
+
+
+class TablesMaster(Base):
+    __tablename__ = 'tables_master'
+
+    id = Column(SMALLINT, nullable=False)
+    floor_id = Column(TINYINT, nullable=False)
+    table_number = Column(VARCHAR(10) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    seats = Column(TINYINT, nullable=False)
+    is_active = Column(TINYINT, nullable=False)
+    current_status = Column(ENUM, nullable=False)
+    current_waiter_id = Column(INTEGER, )
+    current_order_id = Column(INTEGER, )
+    qr_token = Column(CHAR(36) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    # FK: ['floor_id'] -> floors.['id']
+    # FK: ['current_order_id'] -> orders.['id']
+    # FK: ['current_waiter_id'] -> users.['id']
+
+
+class UserSessionsLog(Base):
+    __tablename__ = 'user_sessions_log'
+
+    id = Column(BIGINT, nullable=False)
+    user_id = Column(INTEGER, nullable=False)
+    login_at = Column(TIMESTAMP, nullable=False)
+    logout_at = Column(TIMESTAMP, )
+    ip_address = Column(VARCHAR(45) COLLATE "utf8mb4_unicode_ci", )
+    user_agent = Column(TEXT COLLATE "utf8mb4_unicode_ci", )
+    # FK: ['user_id'] -> users.['id']
+
+
+class Users(Base):
+    __tablename__ = 'users'
+
+    id = Column(INTEGER, nullable=False)
+    name = Column(VARCHAR(100) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    email = Column(VARCHAR(150) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    mobile_number = Column(VARCHAR(15) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    password_hash = Column(VARCHAR(255) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    role_id = Column(TINYINT, nullable=False)
+    is_active = Column(TINYINT, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False)
+    updated_at = Column(TIMESTAMP, nullable=False)
+    deleted_at = Column(TIMESTAMP, )
+    # FK: ['role_id'] -> roles.['id']
+
+
+class VenueSettings(Base):
+    __tablename__ = 'venue_settings'
+
+    id = Column(TINYINT, nullable=False)
+    venue_name = Column(VARCHAR(100) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    self_ordering_enabled = Column(TINYINT, nullable=False)
+    self_ordering_mode = Column(ENUM, nullable=False)
+    self_order_lock_mode = Column(ENUM, nullable=False)
+    session_timeout_minutes = Column(SMALLINT, nullable=False)
+    menu_background_color = Column(CHAR(7) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    menu_background_image_url = Column(VARCHAR(500) COLLATE "utf8mb4_unicode_ci", )
+    currency_symbol = Column(VARCHAR(5) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    tax_label = Column(VARCHAR(20) COLLATE "utf8mb4_unicode_ci", nullable=False)
+    receipt_footer_text = Column(VARCHAR(255) COLLATE "utf8mb4_unicode_ci", )
+    kds_auto_advance = Column(TINYINT, nullable=False)
+    updated_at = Column(TIMESTAMP, nullable=False)
+
+

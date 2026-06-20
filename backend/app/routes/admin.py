@@ -1,490 +1,442 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
+from sqlalchemy.exc import IntegrityError, OperationalError
 from decimal import Decimal
 from datetime import datetime, date, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from app.db.session import get_db
-from app.db.models import (
-    User,
-    Category,
-    FoodItem,
-    Order,
-    AuditLog,
-    SystemControl,
-    RestaurantFloor,
-    RestaurantTable,
-    PaymentMethod,
-    Coupon,
-    Promotion,
-    TableSession,
-)
-from app.models.schemas import (
-    CategoryResponse,
-    CategoryCreate,
-    FoodItemResponse,
-    FoodItemCreate,
-    UserResponse,
-    FloorCreate,
-    FloorResponse,
-    TableCreate,
-    TableResponse,
-    PaymentMethodResponse,
-    CouponCreate,
-    CouponResponse,
-    PromotionCreate,
-    PromotionResponse,
-)
+from app.db.models import User, Role, Customer, Coupon, Promotion, TableMaster, Floor, Order, OrderItem, Payment, AuditLog, VenueSetting
+from app.models.schemas import UserResponse, UserRegister, CouponCreate, CouponResponse, PromotionCreate, PromotionResponse, TableResponse, FloorResponse, FloorCreate, TableCreate
 from app.routes.auth import require_role
+from app.core.security import get_password_hash
+import uuid
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-superadmin_dependency = Depends(require_role(["admin", "superadmin"]))
-catalog_dependency = Depends(require_role(["admin", "superadmin", "inventory_manager"]))
-user_admin_dependency = Depends(require_role(["admin", "superadmin"]))
+admin_dependency = Depends(require_role(["superadmin"]))
 
-@router.get("/dashboard-stats", dependencies=[superadmin_dependency])
-def get_dashboard_stats(db: Session = Depends(get_db)):
-    # Total Users
-    total_users = db.query(User).filter(User.deleted_at == None).count()
-    
-    # Active items & categories
-    active_items = db.query(FoodItem).filter(FoodItem.is_active == True).count()
-    active_categories = db.query(Category).filter(Category.is_active == True).count()
-    
-    # Revenue calculations
-    today_start = datetime.combine(date.today(), datetime.min.time())
-    today_orders = db.query(Order).filter(
-        Order.created_at >= today_start, 
-        Order.payment_status == "completed"
-    ).all()
-    
-    today_revenue = sum(o.total_amount for o in today_orders)
-    
-    # Yesterday comparison
-    yesterday_start = today_start - timedelta(days=1)
-    yesterday_orders = db.query(Order).filter(
-        Order.created_at >= yesterday_start,
-        Order.created_at < today_start,
-        Order.payment_status == "completed"
-    ).all()
-    yesterday_revenue = sum(o.total_amount for o in yesterday_orders)
-    
-    # Global sales mode
-    sys_control = db.query(SystemControl).first()
-    sales_mode = sys_control.sales_mode if sys_control else "closed"
-    
+
+def _validate_coupon_payload(coupon_in: CouponCreate) -> Dict[str, Any]:
+    code = coupon_in.code.strip().upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="Coupon code is required")
+    if len(code) > 30:
+        raise HTTPException(status_code=400, detail="Coupon code must be 30 characters or less")
+
+    discount_type = (coupon_in.discount_type or "").strip().lower()
+    if discount_type not in {"percent", "fixed"}:
+        raise HTTPException(status_code=400, detail="Discount type must be either 'percent' or 'fixed'")
+
+    try:
+        value = Decimal(str(coupon_in.value))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Coupon value must be a valid number")
+
+    if value <= 0:
+        raise HTTPException(status_code=400, detail="Coupon value must be greater than 0")
+
+    if discount_type == "percent" and value > Decimal("100"):
+        raise HTTPException(status_code=400, detail="Percentage discount cannot be greater than 100")
+
+    if coupon_in.max_uses is not None and coupon_in.max_uses <= 0:
+        raise HTTPException(status_code=400, detail="Max uses must be greater than 0")
+
+    if coupon_in.valid_from and coupon_in.valid_until and coupon_in.valid_until < coupon_in.valid_from:
+        raise HTTPException(status_code=400, detail="Valid until date cannot be earlier than valid from date")
+
     return {
-        "total_users": total_users,
-        "active_items": active_items,
-        "active_categories": active_categories,
-        "today_revenue": float(today_revenue),
-        "yesterday_revenue": float(yesterday_revenue),
-        "sales_mode": sales_mode
+        "code": code,
+        "discount_type": discount_type,
+        "value": value,
+        "max_uses": coupon_in.max_uses,
+        "valid_from": coupon_in.valid_from,
+        "valid_until": coupon_in.valid_until,
     }
 
-# ── Category Management ──────────────────────────────────────────────────────
-@router.get("/categories", response_model=List[CategoryResponse], dependencies=[catalog_dependency])
-def list_categories(db: Session = Depends(get_db)):
-    return db.query(Category).all()
-
-@router.post("/categories", response_model=CategoryResponse, dependencies=[catalog_dependency])
-def create_category(cat_in: CategoryCreate, db: Session = Depends(get_db)):
-    existing = db.query(Category).filter(Category.name == cat_in.name).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Category name already exists")
+@router.get("/dashboard-stats", dependencies=[admin_dependency])
+def get_dashboard_stats(db: Session = Depends(get_db)):
+    total_staff = db.query(User).filter(User.deleted_at == None).count()
+    total_customers = db.query(Customer).count()
     
-    new_cat = Category(name=cat_in.name, color=cat_in.color, is_active=True)
-    db.add(new_cat)
-    db.commit()
-    db.refresh(new_cat)
-    return new_cat
+    # Active orders today
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    today_orders = db.query(Order).filter(Order.created_at >= today_start).all()
+    
+    today_revenue = sum((o.total for o in today_orders if o.status == "paid"), Decimal("0.00"))
+    paid_orders_count = sum(1 for o in today_orders if o.status == "paid")
+    
+    occupied_tables = db.query(TableMaster).filter(TableMaster.current_status == 'occupied').count()
+    total_tables = db.query(TableMaster).count()
+    
+    return {
+        "total_staff": total_staff,
+        "total_customers": total_customers,
+        "today_revenue": float(today_revenue),
+        "paid_orders_count": paid_orders_count,
+        "table_occupancy": f"{occupied_tables}/{total_tables}",
+        "occupied_tables_count": occupied_tables
+    }
 
-@router.post("/categories/{cat_id}/toggle", dependencies=[catalog_dependency])
-def toggle_category(cat_id: int, db: Session = Depends(get_db)):
-    cat = db.query(Category).filter(Category.id == cat_id).first()
-    if not cat:
-        raise HTTPException(status_code=404, detail="Category not found")
+# ── User & Staff Management ──────────────────────────────────────────────────
+@router.get("/users", dependencies=[admin_dependency])
+def list_users(db: Session = Depends(get_db)):
+    # Staff list
+    users = db.query(User).filter(User.deleted_at == None).all()
+    roles = {r.id: r.name for r in db.query(Role).all()}
+    
+    staff_list = []
+    for u in users:
+        staff_list.append({
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "mobile_number": u.mobile_number,
+            "role_id": u.role_id,
+            "role_name": roles.get(u.role_id, "unknown"),
+            "is_active": u.is_active,
+            "created_at": u.created_at,
+            "type": "staff"
+        })
         
-    cat.is_active = not cat.is_active
-    db.commit()
-    return {"id": cat.id, "name": cat.name, "is_active": cat.is_active}
-
-# ── Food Item Management ─────────────────────────────────────────────────────
-@router.get("/items", response_model=List[FoodItemResponse], dependencies=[catalog_dependency])
-def list_items(db: Session = Depends(get_db)):
-    return db.query(FoodItem).all()
-
-@router.post("/items", response_model=FoodItemResponse, dependencies=[catalog_dependency])
-def create_item(item_in: FoodItemCreate, db: Session = Depends(get_db)):
-    # Verify category
-    cat = db.query(Category).filter(Category.id == item_in.category_id).first()
-    if not cat:
-        raise HTTPException(status_code=400, detail="Invalid Category ID")
+    # Customer list
+    customers = db.query(Customer).all()
+    cust_list = []
+    for c in customers:
+        cust_list.append({
+            "id": c.id,
+            "name": c.name,
+            "email": c.email,
+            "mobile_number": c.mobile_number,
+            "is_guest": c.is_guest,
+            "created_at": c.created_at,
+            "type": "customer"
+        })
         
-    new_item = FoodItem(
-        category_id=item_in.category_id,
-        name=item_in.name,
-        price=item_in.price,
-        cash_price=item_in.cash_price,
-        unit_of_measure=item_in.unit_of_measure,
-        tax_rate=item_in.tax_rate,
-        description=item_in.description,
-        quantity_available=item_in.quantity_available,
-        reserved_quantity=item_in.reserved_quantity,
-        is_active=item_in.is_active,
-        perishable=item_in.perishable
-    )
-    db.add(new_item)
-    db.commit()
-    db.refresh(new_item)
-    return new_item
+    return {
+        "staff": staff_list,
+        "customers": cust_list
+    }
 
-@router.put("/items/{item_id}", response_model=FoodItemResponse, dependencies=[catalog_dependency])
-def update_item(item_id: int, item_in: FoodItemCreate, db: Session = Depends(get_db)):
-    item = db.query(FoodItem).filter(FoodItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
+@router.post("/users", response_model=UserResponse, dependencies=[admin_dependency])
+def create_staff(user_in: UserRegister, db: Session = Depends(get_db)):
+    role = db.query(Role).filter(Role.id == user_in.role_id).first()
+    if not role:
+        raise HTTPException(status_code=400, detail="Invalid role ID")
         
-    item.category_id = item_in.category_id
-    item.name = item_in.name
-    item.price = item_in.price
-    item.cash_price = item_in.cash_price
-    item.unit_of_measure = item_in.unit_of_measure
-    item.tax_rate = item_in.tax_rate
-    item.description = item_in.description
-    item.quantity_available = item_in.quantity_available
-    item.reserved_quantity = item_in.reserved_quantity
-    item.is_active = item_in.is_active
-    item.perishable = item_in.perishable
-    db.commit()
-    db.refresh(item)
-    return item
-
-@router.delete("/items/{item_id}", dependencies=[catalog_dependency])
-def delete_item(item_id: int, db: Session = Depends(get_db)):
-    item = db.query(FoodItem).filter(FoodItem.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-    db.delete(item)
-    db.commit()
-    return {"success": True, "message": "Item deleted successfully"}
-
-# ── Floor, Table, Payment, Coupon & Promotion Management ─────────────────────
-@router.get("/floors", response_model=List[FloorResponse], dependencies=[superadmin_dependency])
-def list_floors(db: Session = Depends(get_db)):
-    return db.query(RestaurantFloor).order_by(RestaurantFloor.sort_order.asc(), RestaurantFloor.id.asc()).all()
-
-
-@router.post("/floors", response_model=FloorResponse, dependencies=[superadmin_dependency])
-def create_floor(floor_in: FloorCreate, db: Session = Depends(get_db)):
-    floor = RestaurantFloor(
-        name=floor_in.name,
-        sort_order=floor_in.sort_order,
-        is_active=floor_in.is_active,
-    )
-    db.add(floor)
-    db.commit()
-    db.refresh(floor)
-    return floor
-
-
-@router.put("/floors/{floor_id}", response_model=FloorResponse, dependencies=[superadmin_dependency])
-def update_floor(floor_id: int, floor_in: FloorCreate, db: Session = Depends(get_db)):
-    floor = db.query(RestaurantFloor).filter(RestaurantFloor.id == floor_id).first()
-    if not floor:
-        raise HTTPException(status_code=404, detail="Floor not found")
-    floor.name = floor_in.name
-    floor.sort_order = floor_in.sort_order
-    floor.is_active = floor_in.is_active
-    db.commit()
-    db.refresh(floor)
-    return floor
-
-
-@router.delete("/floors/{floor_id}", dependencies=[superadmin_dependency])
-def delete_floor(floor_id: int, db: Session = Depends(get_db)):
-    floor = db.query(RestaurantFloor).filter(RestaurantFloor.id == floor_id).first()
-    if not floor:
-        raise HTTPException(status_code=404, detail="Floor not found")
-    db.delete(floor)
-    db.commit()
-    return {"success": True}
-
-
-@router.get("/tables", response_model=List[TableResponse], dependencies=[superadmin_dependency])
-def list_tables(db: Session = Depends(get_db)):
-    return db.query(RestaurantTable).order_by(RestaurantTable.floor_id.asc(), RestaurantTable.table_number.asc()).all()
-
-
-@router.post("/tables", response_model=TableResponse, dependencies=[superadmin_dependency])
-def create_table(table_in: TableCreate, db: Session = Depends(get_db)):
-    table = RestaurantTable(
-        floor_id=table_in.floor_id,
-        table_number=table_in.table_number,
-        seats=table_in.seats,
-        is_active=table_in.is_active,
-    )
-    db.add(table)
-    db.commit()
-    db.refresh(table)
-    return table
-
-
-@router.put("/tables/{table_id}", response_model=TableResponse, dependencies=[superadmin_dependency])
-def update_table(table_id: int, table_in: TableCreate, db: Session = Depends(get_db)):
-    table = db.query(RestaurantTable).filter(RestaurantTable.id == table_id).first()
-    if not table:
-        raise HTTPException(status_code=404, detail="Table not found")
-    table.floor_id = table_in.floor_id
-    table.table_number = table_in.table_number
-    table.seats = table_in.seats
-    table.is_active = table_in.is_active
-    db.commit()
-    db.refresh(table)
-    return table
-
-
-@router.delete("/tables/{table_id}", dependencies=[superadmin_dependency])
-def delete_table(table_id: int, db: Session = Depends(get_db)):
-    table = db.query(RestaurantTable).filter(RestaurantTable.id == table_id).first()
-    if not table:
-        raise HTTPException(status_code=404, detail="Table not found")
-    db.delete(table)
-    db.commit()
-    return {"success": True}
-
-
-@router.get("/payment-methods", response_model=List[PaymentMethodResponse], dependencies=[superadmin_dependency])
-def list_payment_methods(db: Session = Depends(get_db)):
-    return db.query(PaymentMethod).order_by(PaymentMethod.sort_order.asc(), PaymentMethod.id.asc()).all()
-
-
-@router.post("/payment-methods", response_model=PaymentMethodResponse, dependencies=[superadmin_dependency])
-def create_payment_method(label: str, method_key: str, db: Session = Depends(get_db), upi_id: Optional[str] = None):
-    existing = db.query(PaymentMethod).filter(PaymentMethod.method_key == method_key).first()
+    existing = db.query(User).filter(
+        (User.email == user_in.email) | (User.mobile_number == user_in.mobile_number)
+    ).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Payment method already exists")
-    method = PaymentMethod(method_key=method_key, label=label, upi_id=upi_id)
-    db.add(method)
+        raise HTTPException(status_code=400, detail="User with email or mobile number already exists")
+        
+    hashed_pw = get_password_hash(user_in.password)
+    new_user = User(
+        name=user_in.name,
+        email=user_in.email,
+        mobile_number=user_in.mobile_number,
+        password_hash=hashed_pw,
+        role_id=user_in.role_id,
+        is_active=True
+    )
+    db.add(new_user)
     db.commit()
-    db.refresh(method)
-    return method
+    db.refresh(new_user)
+    return new_user
 
-
-@router.post("/payment-methods/{method_id}/toggle", response_model=PaymentMethodResponse, dependencies=[superadmin_dependency])
-def toggle_payment_method(method_id: int, db: Session = Depends(get_db)):
-    method = db.query(PaymentMethod).filter(PaymentMethod.id == method_id).first()
-    if not method:
-        raise HTTPException(status_code=404, detail="Payment method not found")
-    method.is_enabled = not method.is_enabled
+@router.put("/users/{user_id}/role", dependencies=[admin_dependency])
+def update_user_role(user_id: int, role_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id, User.deleted_at == None).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(status_code=400, detail="Invalid role ID")
+        
+    user.role_id = role_id
     db.commit()
-    db.refresh(method)
-    return method
+    return {"success": True, "new_role_id": role_id, "new_role_name": role.name}
 
+@router.put("/users/{user_id}/password", dependencies=[admin_dependency])
+def reset_user_password(user_id: int, password_in: Dict[str, str], db: Session = Depends(get_db)):
+    # Wait, Dict[str, str] needs to be imported or we can use body parameters. Let's just read the dict directly
+    new_password = password_in.get("password")
+    if not new_password or len(new_password) < 4:
+        raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
+        
+    user = db.query(User).filter(User.id == user_id, User.deleted_at == None).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.password_hash = get_password_hash(new_password)
+    db.commit()
+    return {"success": True, "message": "Password updated successfully"}
 
-@router.get("/coupons", response_model=List[CouponResponse], dependencies=[superadmin_dependency])
+@router.post("/users/{user_id}/archive", dependencies=[admin_dependency])
+def toggle_user_active(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id, User.deleted_at == None).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.is_active = not user.is_active
+    db.commit()
+    return {"success": True, "is_active": user.is_active}
+
+@router.delete("/users/{user_id}", dependencies=[admin_dependency])
+def hard_delete_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    # Check if user has orders
+    order_exists = db.query(Order).filter(
+        (Order.placed_by_user_id == user_id) | (Order.waiter_id == user_id)
+    ).first()
+    if order_exists:
+        # Perform soft delete instead of hard delete
+        user.deleted_at = func.now()
+        user.is_active = False
+        db.commit()
+        return {"success": True, "message": "User soft-deleted due to order references"}
+        
+    db.delete(user)
+    db.commit()
+    return {"success": True, "message": "User permanently deleted"}
+
+# ── Coupon Management ────────────────────────────────────────────────────────
+@router.get("/coupons", response_model=List[CouponResponse], dependencies=[admin_dependency])
 def list_coupons(db: Session = Depends(get_db)):
-    return db.query(Coupon).order_by(Coupon.created_at.desc()).all()
+    return db.query(Coupon).all()
 
-
-@router.post("/coupons", response_model=CouponResponse, dependencies=[superadmin_dependency])
-def create_coupon(coupon_in: CouponCreate, db: Session = Depends(get_db)):
-    existing = db.query(Coupon).filter(Coupon.code == coupon_in.code).first()
+@router.post("/coupons", response_model=CouponResponse)
+def create_coupon(coupon_in: CouponCreate, db: Session = Depends(get_db), current_user: User = Depends(require_role(["superadmin"]))):
+    payload = _validate_coupon_payload(coupon_in)
+    existing = db.query(Coupon).filter(func.upper(Coupon.code) == payload["code"]).first()
     if existing:
         raise HTTPException(status_code=400, detail="Coupon code already exists")
-    coupon = Coupon(
-        code=coupon_in.code.upper(),
-        discount_type=coupon_in.discount_type,
-        discount_value=coupon_in.discount_value,
-        minimum_order_amount=coupon_in.minimum_order_amount,
-        maximum_discount_amount=coupon_in.maximum_discount_amount,
-        is_active=coupon_in.is_active,
+        
+    new_coupon = Coupon(
+        code=payload["code"],
+        discount_type=payload["discount_type"],
+        value=payload["value"],
+        max_uses=payload["max_uses"],
+        valid_from=payload["valid_from"],
+        valid_until=payload["valid_until"],
+        created_by=current_user.id,
+        is_active=True
     )
-    db.add(coupon)
-    db.commit()
-    db.refresh(coupon)
-    return coupon
+    db.add(new_coupon)
+    try:
+        db.commit()
+    except (IntegrityError, OperationalError):
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Invalid coupon data. For percentage discounts, value must be between 0 and 100")
+    db.refresh(new_coupon)
+    return new_coupon
 
-
-@router.put("/coupons/{coupon_id}", response_model=CouponResponse, dependencies=[superadmin_dependency])
+@router.put("/coupons/{coupon_id}", response_model=CouponResponse, dependencies=[admin_dependency])
 def update_coupon(coupon_id: int, coupon_in: CouponCreate, db: Session = Depends(get_db)):
     coupon = db.query(Coupon).filter(Coupon.id == coupon_id).first()
     if not coupon:
         raise HTTPException(status_code=404, detail="Coupon not found")
-    coupon.code = coupon_in.code.upper()
-    coupon.discount_type = coupon_in.discount_type
-    coupon.discount_value = coupon_in.discount_value
-    coupon.minimum_order_amount = coupon_in.minimum_order_amount
-    coupon.maximum_discount_amount = coupon_in.maximum_discount_amount
-    coupon.is_active = coupon_in.is_active
-    db.commit()
+
+    payload = _validate_coupon_payload(coupon_in)
+    duplicate = db.query(Coupon).filter(func.upper(Coupon.code) == payload["code"], Coupon.id != coupon_id).first()
+    if duplicate:
+        raise HTTPException(status_code=400, detail="Coupon code already exists")
+        
+    coupon.code = payload["code"]
+    coupon.discount_type = payload["discount_type"]
+    coupon.value = payload["value"]
+    coupon.max_uses = payload["max_uses"]
+    coupon.valid_from = payload["valid_from"]
+    coupon.valid_until = payload["valid_until"]
+    
+    try:
+        db.commit()
+    except (IntegrityError, OperationalError):
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Invalid coupon update. Check discount value and validity dates")
     db.refresh(coupon)
     return coupon
 
-
-@router.delete("/coupons/{coupon_id}", dependencies=[superadmin_dependency])
+@router.delete("/coupons/{coupon_id}", dependencies=[admin_dependency])
 def delete_coupon(coupon_id: int, db: Session = Depends(get_db)):
     coupon = db.query(Coupon).filter(Coupon.id == coupon_id).first()
     if not coupon:
         raise HTTPException(status_code=404, detail="Coupon not found")
     db.delete(coupon)
     db.commit()
-    return {"success": True}
+    return {"success": True, "message": "Coupon deleted successfully"}
 
-
-@router.get("/promotions", response_model=List[PromotionResponse], dependencies=[superadmin_dependency])
+# ── Promotion Management ─────────────────────────────────────────────────────
+@router.get("/promotions", response_model=List[PromotionResponse], dependencies=[admin_dependency])
 def list_promotions(db: Session = Depends(get_db)):
-    return db.query(Promotion).order_by(Promotion.created_at.desc()).all()
+    return db.query(Promotion).all()
 
-
-@router.post("/promotions", response_model=PromotionResponse, dependencies=[superadmin_dependency])
+@router.post("/promotions", response_model=PromotionResponse, dependencies=[admin_dependency])
 def create_promotion(promo_in: PromotionCreate, db: Session = Depends(get_db)):
-    promo = Promotion(
+    new_promo = Promotion(
         name=promo_in.name,
-        target_type=promo_in.target_type,
-        target_id=promo_in.target_id,
+        scope=promo_in.scope,
+        product_id=promo_in.product_id,
+        min_quantity=promo_in.min_quantity,
+        min_order_amount=promo_in.min_order_amount,
         discount_type=promo_in.discount_type,
-        discount_value=promo_in.discount_value,
-        minimum_quantity=promo_in.minimum_quantity,
-        minimum_order_amount=promo_in.minimum_order_amount,
-        is_active=promo_in.is_active,
+        value=promo_in.value,
+        valid_from=promo_in.valid_from,
+        valid_until=promo_in.valid_until,
+        is_active=True
     )
-    db.add(promo)
+    db.add(new_promo)
     db.commit()
-    db.refresh(promo)
-    return promo
+    db.refresh(new_promo)
+    return new_promo
 
-
-@router.put("/promotions/{promo_id}", response_model=PromotionResponse, dependencies=[superadmin_dependency])
+@router.put("/promotions/{promo_id}", response_model=PromotionResponse, dependencies=[admin_dependency])
 def update_promotion(promo_id: int, promo_in: PromotionCreate, db: Session = Depends(get_db)):
     promo = db.query(Promotion).filter(Promotion.id == promo_id).first()
     if not promo:
         raise HTTPException(status_code=404, detail="Promotion not found")
+        
     promo.name = promo_in.name
-    promo.target_type = promo_in.target_type
-    promo.target_id = promo_in.target_id
+    promo.scope = promo_in.scope
+    promo.product_id = promo_in.product_id
+    promo.min_quantity = promo_in.min_quantity
+    promo.min_order_amount = promo_in.min_order_amount
     promo.discount_type = promo_in.discount_type
-    promo.discount_value = promo_in.discount_value
-    promo.minimum_quantity = promo_in.minimum_quantity
-    promo.minimum_order_amount = promo_in.minimum_order_amount
-    promo.is_active = promo_in.is_active
+    promo.value = promo_in.value
+    promo.valid_from = promo_in.valid_from
+    promo.valid_until = promo_in.valid_until
+    
     db.commit()
     db.refresh(promo)
     return promo
 
-
-@router.delete("/promotions/{promo_id}", dependencies=[superadmin_dependency])
+@router.delete("/promotions/{promo_id}", dependencies=[admin_dependency])
 def delete_promotion(promo_id: int, db: Session = Depends(get_db)):
     promo = db.query(Promotion).filter(Promotion.id == promo_id).first()
     if not promo:
         raise HTTPException(status_code=404, detail="Promotion not found")
     db.delete(promo)
     db.commit()
-    return {"success": True}
+    return {"success": True, "message": "Promotion deleted successfully"}
 
-
-@router.get("/table-overview", dependencies=[superadmin_dependency])
-def table_overview(db: Session = Depends(get_db)):
-    tables = db.query(RestaurantTable).all()
-    overview = []
-    for table in tables:
-        active_order = None
-        if table.active_order_id:
-            active_order = db.query(Order).filter(Order.id == table.active_order_id).first()
-        overview.append({
-            "id": table.id,
-            "floor_id": table.floor_id,
-            "table_number": table.table_number,
-            "seats": table.seats,
-            "status": table.status,
-            "is_active": table.is_active,
-            "active_cashier_id": table.active_cashier_id,
-            "active_order": {
-                "id": active_order.id,
-                "bill_number": active_order.bill_number,
-                "payment_status": active_order.payment_status,
-                "order_status": active_order.order_status,
-                "kitchen_status": active_order.kitchen_status,
-                "total_amount": float(active_order.total_amount),
-            } if active_order else None,
-        })
-    return overview
-
-# ── User Roles & Admin Controls ──────────────────────────────────────────────
-@router.get("/users", dependencies=[user_admin_dependency])
-def list_users(db: Session = Depends(get_db)):
-    users = db.query(User).filter(User.deleted_at == None).order_by(User.created_at.desc()).all()
+# ── Live Table Status Monitoring ─────────────────────────────────────────────
+@router.get("/tables/status", dependencies=[admin_dependency])
+def monitor_tables(db: Session = Depends(get_db)):
+    tables = db.query(TableMaster).all()
     result = []
-    for u in users:
+    for t in tables:
+        # Find active order
+        active_order_data = None
+        if t.current_order_id:
+            order = db.query(Order).filter(Order.id == t.current_order_id).first()
+            if order:
+                items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+                items_cooked = sum(1 for item in items if item.kitchen_status == "completed")
+                total_items = len(items)
+                
+                active_order_data = {
+                    "order_id": order.id,
+                    "order_number": order.order_number,
+                    "status": order.status,
+                    "payment_status": "Paid" if order.status == "paid" else "Unpaid",
+                    "items_count": total_items,
+                    "cooking_progress": f"{items_cooked}/{total_items}" if total_items > 0 else "0/0"
+                }
+                
+        waiter_name = None
+        if t.current_waiter_id:
+            waiter = db.query(User).filter(User.id == t.current_waiter_id).first()
+            if waiter:
+                waiter_name = waiter.name
+                
         result.append({
-            "id": u.id,
-            "roll_no": u.roll_no,
-            "display_name": u.display_name,
-            "email": u.email,
-            "phone_no": u.phone_no,
-            "role": u.role,
-            "user_type": u.user_type,
-            "wallet_balance": u.get_balance(),
-            "email_verified": u.email_verified,
-            "loyalty_points": u.loyalty_points,
-            "created_at": u.created_at
+            "table_id": t.id,
+            "table_number": t.table_number,
+            "seats": t.seats,
+            "status": t.current_status,
+            "waiter_name": waiter_name,
+            "active_order": active_order_data
         })
     return result
 
-@router.post("/users/{user_id}/role", dependencies=[user_admin_dependency])
-def update_user_role(user_id: int, role: str, db: Session = Depends(get_db)):
-    if role not in [
-        "user",
-        "customer",
-        "cashier",
-        "admin",
-        "superadmin",
-        "inventory_manager",
-        "chef",
-        "dept",
-        "external",
-    ]:
-        raise HTTPException(status_code=400, detail="Invalid role specified")
-        
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-        
-    user.role = role
-    db.commit()
-    return {"success": True, "new_role": role}
+# ── Venue Setting Endpoints ──────────────────────────────────────────────────
+@router.get("/settings", dependencies=[admin_dependency])
+def get_venue_settings(db: Session = Depends(get_db)):
+    settings_obj = db.query(VenueSetting).first()
+    if not settings_obj:
+        # Create a default one if none exists
+        settings_obj = VenueSetting(
+            venue_name="iTech Canteen",
+            currency_symbol="₹",
+            self_ordering_enabled=True,
+            self_ordering_mode="online_ordering",
+            self_order_lock_mode="device",
+            kds_auto_advance=False
+        )
+        db.add(settings_obj)
+        db.commit()
+        db.refresh(settings_obj)
+    return settings_obj
 
-@router.delete("/users/{user_id}", dependencies=[user_admin_dependency])
-def suspend_user(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+@router.put("/settings", dependencies=[admin_dependency])
+def update_venue_settings(payload: Dict[str, Any], db: Session = Depends(get_db)):
+    settings_obj = db.query(VenueSetting).first()
+    if not settings_obj:
+        raise HTTPException(status_code=404, detail="Venue settings not found")
         
-    user.deleted_at = datetime.utcnow()
+    for k, v in payload.items():
+        if hasattr(settings_obj, k):
+            setattr(settings_obj, k, v)
+            
     db.commit()
-    return {"success": True, "message": "User account suspended"}
+    db.refresh(settings_obj)
+    return settings_obj
 
-# ── Global System Control ─────────────────────────────────────────────────────
-@router.post("/system-control/sales-mode", dependencies=[superadmin_dependency])
-def update_sales_mode(mode: str, admin: User = Depends(require_role(["admin", "superadmin"])), db: Session = Depends(get_db)):
-    if mode not in ["open", "closed", "emergency"]:
-        raise HTTPException(status_code=400, detail="Invalid sales mode")
-        
-    ctrl = db.query(SystemControl).first()
-    if not ctrl:
-        ctrl = SystemControl(sales_mode=mode, sales_open_date=date.today(), updated_by=admin.id)
-        db.add(ctrl)
-    else:
-        ctrl.sales_mode = mode
-        ctrl.sales_open_date = date.today()
-        ctrl.updated_by = admin.id
-        
+# ── Floors & Tables Endpoints ────────────────────────────────────────────────
+
+@router.get("/floors", response_model=List[FloorResponse], dependencies=[admin_dependency])
+def get_floors(db: Session = Depends(get_db)):
+    floors = db.query(Floor).order_by(Floor.display_order).all()
+    # Eager loading or properties will handle tables if relationships are defined
+    return floors
+
+@router.post("/floors", response_model=FloorResponse, dependencies=[admin_dependency])
+def create_floor(floor_in: FloorCreate, db: Session = Depends(get_db)):
+    max_order = db.query(func.max(Floor.display_order)).scalar() or 0
+    new_floor = Floor(
+        name=floor_in.name,
+        display_order=max_order + 1
+    )
+    db.add(new_floor)
     db.commit()
-    return {"sales_mode": mode}
+    db.refresh(new_floor)
+    return new_floor
 
-@router.get("/audit-logs", dependencies=[superadmin_dependency])
-def list_audit_logs(db: Session = Depends(get_db)):
-    logs = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(100).all()
-    return logs
+@router.post("/tables", response_model=TableResponse, dependencies=[admin_dependency])
+def create_table(table_in: TableCreate, db: Session = Depends(get_db)):
+    floor = db.query(Floor).filter(Floor.id == table_in.floor_id).first()
+    if not floor:
+        raise HTTPException(status_code=404, detail="Floor not found")
+        
+    existing = db.query(TableMaster).filter(TableMaster.table_number == table_in.table_number).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Table number already exists")
+        
+    new_table = TableMaster(
+        floor_id=table_in.floor_id,
+        table_number=table_in.table_number,
+        seats=table_in.seats,
+        is_active=True,
+        current_status='available',
+        qr_token=str(uuid.uuid4())
+    )
+    db.add(new_table)
+    db.commit()
+    db.refresh(new_table)
+    return new_table
+

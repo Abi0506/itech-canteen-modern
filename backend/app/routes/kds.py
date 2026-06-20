@@ -1,120 +1,108 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime
+from typing import List, Optional
 
 from app.db.session import get_db
-from app.db.models import Order, OrderItem, FoodItem
+from app.db.models import User, Order, OrderItem, Product, TableMaster
+from app.models.schemas import KDSTicket
 from app.routes.auth import require_role
 from app.routes.websockets import manager
 
 router = APIRouter(prefix="/kds", tags=["kds"])
 
-chef_dependency = Depends(require_role(["chef", "admin", "superadmin"]))
+chef_dependency = Depends(require_role(["chef", "superadmin", "employee"]))
 
-
-def _sync_order_state(order: Order, db: Session):
-    order_items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
-    pending = any(item.status != "completed" for item in order_items)
-    any_preparing = any(item.status == "preparing" for item in order_items)
-    if pending and any_preparing:
-        order.order_status = "preparing"
-        order.kitchen_status = "preparing"
-    elif pending:
-        order.order_status = "sent"
-        order.kitchen_status = "to_cook"
-    else:
-        order.order_status = "completed"
-        order.kitchen_status = "completed"
-
-
-@router.get("/orders", dependencies=[chef_dependency])
-def list_kds_orders(db: Session = Depends(get_db)):
-    orders = db.query(Order).filter(Order.payment_status != "completed").order_by(Order.created_at.desc()).all()
-    return [
-        {
-            "id": order.id,
-            "bill_number": order.bill_number,
-            "table_id": order.table_id,
-            "floor_id": order.floor_id,
-            "items": order.items,
-            "order_status": order.order_status,
-            "kitchen_status": order.kitchen_status,
-            "payment_status": order.payment_status,
+@router.get("/tickets", response_model=List[KDSTicket], dependencies=[chef_dependency])
+def get_kds_tickets(db: Session = Depends(get_db)):
+    active_orders = db.query(Order).filter(Order.status.in_(['sent_to_kitchen'])).all()
+    
+    tickets = []
+    for order in active_orders:
+        items = db.query(OrderItem).join(Product).filter(
+            OrderItem.order_id == order.id,
+            Product.kds_visible == True,
+            OrderItem.kitchen_status.in_(['to_cook', 'preparing'])
+        ).all()
+        
+        if not items:
+            continue
+            
+        ticket_items = []
+        for i in items:
+            chef_name = None
+            if i.claimed_by:
+                chef = db.query(User).filter(User.id == i.claimed_by).first()
+                if chef:
+                    chef_name = chef.name
+            ticket_items.append({
+                "id": i.id,
+                "product_name": i.product.name,
+                "quantity": i.quantity,
+                "kitchen_status": i.kitchen_status,
+                "notes": i.notes,
+                "claimed_by_name": chef_name,
+                "claimed_at": i.claimed_at
+            })
+            
+        table_num = None
+        if order.table_id:
+            table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
+            if table:
+                table_num = table.table_number
+                
+        tickets.append({
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "table_number": table_num,
+            "source": order.source,
             "created_at": order.created_at,
-        }
-        for order in orders
-    ]
+            "items": ticket_items
+        })
+    return tickets
 
-
-@router.post("/orders/{order_id}/items/{food_item_id}/start", dependencies=[chef_dependency])
-async def start_item(order_id: int, food_item_id: int, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    order_item = db.query(OrderItem).filter(
-        OrderItem.order_id == order_id,
-        OrderItem.food_item_id == food_item_id,
-    ).first()
-    if not order_item:
+@router.post("/items/{item_id}/claim")
+async def claim_kds_item(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_role(["chef", "superadmin", "employee"]))):
+    item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
+    if not item:
         raise HTTPException(status_code=404, detail="Order item not found")
-
-    if order_item.status == "completed":
-        return {"success": True}
-
-    order_item.status = "preparing"
-    order_item.kitchen_status = "preparing"
-    _sync_order_state(order, db)
+        
+    if item.kitchen_status != 'to_cook':
+        raise HTTPException(status_code=400, detail="Item is already claimed or completed")
+        
+    item.kitchen_status = 'preparing'
+    item.claimed_by = current_user.id
+    item.claimed_at = datetime.utcnow()
     db.commit()
-
+    
+    # Broadcast to KDS and waiter channels
     await manager.broadcast_all({
-        "event": "kds_item_started",
-        "order_id": order.id,
-        "food_item_id": food_item_id,
-        "table_id": order.table_id,
+        "event": "item_claimed",
+        "item_id": item_id,
+        "claimed_by": current_user.id,
+        "claimed_by_name": current_user.name
     })
-    return {"success": True}
+    
+    return {"success": True, "status": "preparing"}
 
-
-@router.post("/orders/{order_id}/items/{food_item_id}/complete", dependencies=[chef_dependency])
-async def complete_item(order_id: int, food_item_id: int, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    order_item = db.query(OrderItem).filter(
-        OrderItem.order_id == order_id,
-        OrderItem.food_item_id == food_item_id,
-    ).first()
-    if not order_item:
+@router.post("/items/{item_id}/complete")
+async def complete_kds_item(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_role(["chef", "superadmin", "employee"]))):
+    item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
+    if not item:
         raise HTTPException(status_code=404, detail="Order item not found")
-
-    if order_item.status == "completed":
-        return {"success": True}
-
-    food_item = db.query(FoodItem).filter(FoodItem.id == food_item_id).first()
-    if not food_item:
-        raise HTTPException(status_code=404, detail="Food item not found")
-
-    completed_qty = order_item.quantity
-    food_item.reserved_quantity = max(0, (food_item.reserved_quantity or 0) - completed_qty)
-    order_item.status = "completed"
-    order_item.kitchen_status = "completed"
-    order_item.completed_at = datetime.utcnow()
-
-    order_payload = dict(order.items or {})
-    item_payload = order_payload.get(str(food_item_id))
-    if item_payload:
-        item_payload["status"] = "completed"
-        order_payload[str(food_item_id)] = item_payload
-    order.items = order_payload
-    _sync_order_state(order, db)
+        
+    if item.kitchen_status == 'completed':
+        raise HTTPException(status_code=400, detail="Item is already completed")
+        
+    item.kitchen_status = 'completed'
+    item.completed_at = datetime.utcnow()
     db.commit()
-
+    
+    # Broadcast to KDS and waiter channels
     await manager.broadcast_all({
-        "event": "kds_item_completed",
-        "order_id": order.id,
-        "food_item_id": food_item_id,
-        "table_id": order.table_id,
+        "event": "item_completed",
+        "item_id": item_id,
+        "order_id": item.order_id
     })
-    return {"success": True}
+    
+    return {"success": True, "status": "completed"}

@@ -1,0 +1,89 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from decimal import Decimal
+from datetime import datetime, date, timedelta
+from typing import List, Dict, Any
+
+from app.db.session import get_db
+from app.db.models import Order, OrderItem, Product, Category
+from app.routes.auth import require_role
+
+router = APIRouter(prefix="/reports", tags=["reports"])
+
+admin_dependency = Depends(require_role(["superadmin"]))
+
+@router.get("/dashboard", dependencies=[admin_dependency])
+def get_reports_dashboard(db: Session = Depends(get_db)):
+    # Total revenue and orders all-time
+    paid_orders = db.query(Order).filter(Order.status == 'paid').all()
+    total_revenue = sum(o.total for o in paid_orders)
+    total_orders = len(paid_orders)
+    avg_order_value = total_revenue / total_orders if total_orders > 0 else Decimal("0.00")
+    
+    # Revenue this month
+    start_of_month = date.today().replace(day=1)
+    month_orders = db.query(Order).filter(Order.status == 'paid', Order.created_at >= start_of_month).all()
+    month_revenue = sum(o.total for o in month_orders)
+    
+    return {
+        "all_time_revenue": float(total_revenue),
+        "all_time_orders": total_orders,
+        "avg_order_value": float(avg_order_value),
+        "month_revenue": float(month_revenue)
+    }
+
+@router.get("/sales-trend", dependencies=[admin_dependency])
+def get_sales_trend(db: Session = Depends(get_db)):
+    # Past 7 days sales trend
+    today = date.today()
+    trend = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        day_start = datetime.combine(day, datetime.min.time())
+        day_end = datetime.combine(day, datetime.max.time())
+        orders = db.query(Order).filter(Order.status == 'paid', Order.created_at >= day_start, Order.created_at <= day_end).all()
+        day_revenue = sum(o.total for o in orders)
+        trend.append({
+            "date": day.strftime("%Y-%m-%d"),
+            "revenue": float(day_revenue),
+            "orders": len(orders)
+        })
+    return trend
+
+@router.get("/top-products", dependencies=[admin_dependency])
+def get_top_products(db: Session = Depends(get_db)):
+    # Query top items
+    items = db.query(
+        Product.name,
+        func.sum(OrderItem.quantity).label("total_qty"),
+        func.sum(OrderItem.line_total).label("total_revenue")
+    ).join(OrderItem).join(Order).filter(
+        Order.status == 'paid'
+    ).group_by(Product.name).order_by(func.sum(OrderItem.quantity).desc()).limit(5).all()
+    
+    return [
+        {
+            "name": row[0],
+            "quantity": float(row[1] or 0),
+            "revenue": float(row[2] or 0)
+        }
+        for row in items
+    ]
+
+@router.get("/top-categories", dependencies=[admin_dependency])
+def get_top_categories(db: Session = Depends(get_db)):
+    categories = db.query(
+        Category.name,
+        func.sum(OrderItem.line_total).label("total_revenue")
+    ).join(Product, Product.category_id == Category.id).join(OrderItem).join(Order).filter(
+        Order.status == 'paid'
+    ).group_by(Category.name).order_by(func.sum(OrderItem.line_total).desc()).all()
+    
+    return [
+        {
+            "name": row[0],
+            "revenue": float(row[1] or 0)
+        }
+        for row in categories
+    ]

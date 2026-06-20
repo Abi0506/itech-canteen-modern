@@ -1,324 +1,364 @@
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, JSON, Numeric, String, Text, Time, UniqueConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Boolean, Numeric, DateTime, Time, Date, ForeignKey, Text, JSON, SmallInteger as SMALLINT, SmallInteger, BigInteger, Enum, CHAR, VARCHAR, TIMESTAMP
+from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.sql import func
-
-from app.core.security import decrypt_wallet_balance, encrypt_wallet_balance
+from sqlalchemy.orm import relationship
 from app.db.session import Base
 
+# ─── Roles ──────────────────────────────────────────────────────────────────
+class Role(Base):
+    __tablename__ = "roles"
+    id = Column(TINYINT, primary_key=True, index=True)
+    name = Column(VARCHAR(30), nullable=False)
 
-class Category(Base):
-    __tablename__ = "categories"
+    users = relationship("User", back_populates="role")
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), unique=True, nullable=False)
-    color = Column(String(20), nullable=False, default="#F59E0B")
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    items = relationship("FoodItem", back_populates="category")
-
-
-class Department(Base):
-    __tablename__ = "departments"
-
-    id = Column(Integer, primary_key=True, index=True)
-    dept_name = Column(String(100), unique=True, nullable=False)
-    password = Column(String(255), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
+# ─── Users ──────────────────────────────────────────────────────────────────
 class User(Base):
     __tablename__ = "users"
-
     id = Column(Integer, primary_key=True, index=True)
-    roll_no = Column(String(50), unique=True, nullable=False)
-    display_name = Column(String(100))
-    email = Column(String(100), unique=True, nullable=False)
-    phone_no = Column(String(20))
-    password = Column(String(255), nullable=False)
-    role = Column(String(20), default="user")
-    user_type = Column(String(20), default="student")
-    email_verified = Column(Boolean, default=False, nullable=False)
-    wallet_balance = Column(String(255))
-    favourites = Column(JSON, default=list)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    deleted_at = Column(DateTime(timezone=True))
-    bulk_order_enabled = Column(Boolean, default=False, nullable=False)
-    loyalty_points = Column(Integer, default=0, nullable=False)
+    name = Column(VARCHAR(100), nullable=False)
+    email = Column(VARCHAR(150), nullable=False, unique=True, index=True)
+    mobile_number = Column(VARCHAR(15), nullable=False)
+    password_hash = Column(VARCHAR(255), nullable=False)
+    role_id = Column(TINYINT, ForeignKey("roles.id"), nullable=False)
+    is_active = Column(TINYINT, nullable=False, default=1)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
+    deleted_at = Column(TIMESTAMP, nullable=True)
 
-    orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id")
-    wallet_transactions = relationship(
-        "WalletTransaction",
-        back_populates="user",
-        foreign_keys="WalletTransaction.user_id",
-    )
+    role = relationship("Role", back_populates="users")
 
-    def get_balance(self) -> float:
-        return decrypt_wallet_balance(self.wallet_balance, self.id)
-
-    def set_balance(self, amount: float):
-        self.wallet_balance = encrypt_wallet_balance(amount, self.id)
-
-
-class FoodItem(Base):
-    __tablename__ = "food_items"
-
+# ─── Customers ───────────────────────────────────────────────────────────────
+class Customer(Base):
+    __tablename__ = "customers"
     id = Column(Integer, primary_key=True, index=True)
-    category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"))
-    name = Column(String(100), nullable=False)
-    description = Column(Text)
+    name = Column(VARCHAR(100), nullable=False)
+    email = Column(VARCHAR(150), nullable=True)
+    mobile_number = Column(VARCHAR(15), nullable=False)
+    password_hash = Column(VARCHAR(255), nullable=True)
+    is_guest = Column(TINYINT, nullable=False, default=1)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
+
+    orders = relationship("Order", back_populates="customer")
+
+# ─── Categories ──────────────────────────────────────────────────────────────
+class Category(Base):
+    __tablename__ = "categories"
+    id = Column(SMALLINT, primary_key=True, index=True)
+    name = Column(VARCHAR(60), nullable=False)
+    color_hex = Column(CHAR(7), nullable=False, default="#CCCCCC")
+    display_order = Column(TINYINT, nullable=False, default=0)
+    is_active = Column(TINYINT, nullable=False, default=1)
+
+    products = relationship("Product", back_populates="category")
+
+# ─── Products ─────────────────────────────────────────────────────────────────
+class Product(Base):
+    __tablename__ = "products"
+    id = Column(Integer, primary_key=True, index=True)
+    category_id = Column(SMALLINT, ForeignKey("categories.id"), nullable=False)
+    name = Column(VARCHAR(120), nullable=False)
     price = Column(Numeric(10, 2), nullable=False)
-    cash_price = Column(Numeric(10, 2))
-    unit_of_measure = Column(String(30), default="piece")
-    tax_rate = Column(Numeric(5, 2), default=0.00)
-    image = Column(String(255))
-    quantity_available = Column(Integer, default=0, nullable=False)
-    reserved_quantity = Column(Integer, default=0, nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False)
-    last_stock_update = Column(DateTime(timezone=True))
-    last_reserved_at = Column(DateTime(timezone=True))
-    perishable = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    uom = Column(VARCHAR(20), nullable=False, default="piece")
+    tax_percent = Column(Numeric(5, 2), nullable=False, default=0.00)
+    description = Column(Text, nullable=True)
+    image_url = Column(VARCHAR(500), nullable=True)
+    kds_visible = Column(TINYINT, nullable=False, default=1)
+    is_active = Column(TINYINT, nullable=False, default=1)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
 
-    category = relationship("Category", back_populates="items")
+    category = relationship("Category", back_populates="products")
+    inventory_item = relationship("InventoryItem", back_populates="product", uselist=False)
 
-
-class AuditLog(Base):
-    __tablename__ = "audit_logs"
-
+# ─── InventoryItem ────────────────────────────────────────────────────────────
+class InventoryItem(Base):
+    __tablename__ = "inventory_items"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    action = Column(String(100), nullable=False)
-    table_name = Column(String(50))
-    row_id = Column(Integer)
-    before_state = Column(JSON)
-    after_state = Column(JSON)
-    meta = Column(JSON)
-    ip_address = Column(String(45))
-    user_agent = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    sku = Column(VARCHAR(50), nullable=False)
+    unit = Column(VARCHAR(20), nullable=False, default="piece")
+    current_stock = Column(Numeric(10, 2), nullable=False, default=0.00)
+    reorder_level = Column(Numeric(10, 2), nullable=False, default=0.00)
+    max_stock = Column(Numeric(10, 2), nullable=True)
+    is_perishable = Column(TINYINT, nullable=False, default=0)
+    expiry_date = Column(Date, nullable=True)
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
 
+    product = relationship("Product", back_populates="inventory_item")
 
-class StockAuditLog(Base):
-    __tablename__ = "stock_audit_logs"
+# ─── StockMovement ────────────────────────────────────────────────────────────
+class StockMovement(Base):
+    __tablename__ = "stock_movements"
+    id = Column(BigInteger, primary_key=True, index=True)
+    inventory_item_id = Column(Integer, ForeignKey("inventory_items.id"), nullable=False)
+    movement_type = Column(Enum('purchase_in', 'sale_out', 'wastage', 'adjustment', 'return_in'), nullable=False)
+    quantity = Column(Numeric(10, 2), nullable=False)
+    reference_order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    performed_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    note = Column(VARCHAR(255), nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
 
-    id = Column(Integer, primary_key=True, index=True)
-    actor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    actor_roll_no = Column(String(64))
-    actor_role = Column(String(32))
-    action = Column(String(32), nullable=False)
-    food_item_id = Column(Integer, ForeignKey("food_items.id", ondelete="CASCADE"), nullable=False)
-    food_item_name = Column(String(255))
-    before_quantity = Column(Integer)
-    after_quantity = Column(Integer)
-    change_amount = Column(Integer)
-    source = Column(String(32), default="cashier_stock_update")
-    ip_address = Column(String(45))
-    user_agent = Column(Text)
-    meta = Column(JSON)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+# ─── Floors ───────────────────────────────────────────────────────────────────
+class Floor(Base):
+    __tablename__ = "floors"
+    id = Column(TINYINT, primary_key=True, index=True)
+    name = Column(VARCHAR(60), nullable=False)
+    display_order = Column(TINYINT, nullable=False, default=0)
 
+    tables = relationship("TableMaster", back_populates="floor")
 
-class SystemControl(Base):
-    __tablename__ = "system_controls"
+# ─── Tables ───────────────────────────────────────────────────────────────────
+class TableMaster(Base):
+    __tablename__ = "tables_master"
+    id = Column(SMALLINT, primary_key=True, index=True)
+    floor_id = Column(TINYINT, ForeignKey("floors.id"), nullable=False)
+    table_number = Column(VARCHAR(10), nullable=False)
+    seats = Column(TINYINT, nullable=False, default=4)
+    is_active = Column(TINYINT, nullable=False, default=1)
+    current_status = Column(Enum('available', 'reserved', 'occupied'), nullable=False, default='available')
+    current_waiter_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    current_order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    qr_token = Column(CHAR(36), nullable=False)
 
-    id = Column(Integer, primary_key=True, index=True)
-    sales_mode = Column(String(20), default="closed", nullable=False)
-    sales_open_date = Column(Date)
-    updated_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    floor = relationship("Floor", back_populates="tables")
 
-
-class Idea(Base):
-    __tablename__ = "ideas"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    title = Column(String(255), nullable=False)
-    description = Column(Text, nullable=False)
-    upvotes = Column(Integer, default=0, nullable=False)
-    status = Column(String(30), default="pending")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
-class IdeaUpvote(Base):
-    __tablename__ = "idea_upvotes"
-    __table_args__ = (UniqueConstraint("idea_id", "user_id", name="uq_idea_upvotes_idea_user"),)
-
-    id = Column(Integer, primary_key=True, index=True)
-    idea_id = Column(Integer, ForeignKey("ideas.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
-class RestaurantFloor(Base):
-    __tablename__ = "restaurant_floors"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), unique=True, nullable=False)
-    sort_order = Column(Integer, default=0, nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    tables = relationship("RestaurantTable", back_populates="floor")
-
-
-class RestaurantTable(Base):
-    __tablename__ = "restaurant_tables"
-
-    id = Column(Integer, primary_key=True, index=True)
-    floor_id = Column(Integer, ForeignKey("restaurant_floors.id", ondelete="CASCADE"), nullable=False)
-    table_number = Column(String(20), nullable=False)
-    seats = Column(Integer, default=2, nullable=False)
-    status = Column(String(20), default="available", nullable=False)
-    active_cashier_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    active_order_id = Column(Integer)
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    floor = relationship("RestaurantFloor", back_populates="tables")
-
-
-class PaymentMethod(Base):
-    __tablename__ = "payment_methods"
-
-    id = Column(Integer, primary_key=True, index=True)
-    method_key = Column(String(30), unique=True, nullable=False)
-    label = Column(String(50), nullable=False)
-    is_enabled = Column(Boolean, default=True, nullable=False)
-    upi_id = Column(String(100))
-    sort_order = Column(Integer, default=0, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-
+# ─── Coupons ──────────────────────────────────────────────────────────────────
 class Coupon(Base):
     __tablename__ = "coupons"
-
     id = Column(Integer, primary_key=True, index=True)
-    code = Column(String(50), unique=True, nullable=False)
-    discount_type = Column(String(20), nullable=False)
-    discount_value = Column(Numeric(10, 2), nullable=False)
-    minimum_order_amount = Column(Numeric(10, 2), default=0.00)
-    maximum_discount_amount = Column(Numeric(10, 2))
-    is_active = Column(Boolean, default=True, nullable=False)
-    starts_at = Column(DateTime(timezone=True))
-    ends_at = Column(DateTime(timezone=True))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    code = Column(VARCHAR(30), nullable=False)
+    discount_type = Column(Enum('percent', 'fixed'), nullable=False)
+    value = Column(Numeric(10, 2), nullable=False)
+    max_uses = Column(Integer, nullable=True)
+    used_count = Column(Integer, nullable=False, default=0)
+    is_active = Column(TINYINT, nullable=False, default=1)
+    valid_from = Column(Date, nullable=True)
+    valid_until = Column(Date, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
 
-
+# ─── Promotions ───────────────────────────────────────────────────────────────
 class Promotion(Base):
     __tablename__ = "promotions"
-
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    target_type = Column(String(20), nullable=False)
-    target_id = Column(Integer)
-    discount_type = Column(String(20), nullable=False)
-    discount_value = Column(Numeric(10, 2), nullable=False)
-    minimum_quantity = Column(Integer)
-    minimum_order_amount = Column(Numeric(10, 2))
-    is_active = Column(Boolean, default=True, nullable=False)
-    starts_at = Column(DateTime(timezone=True))
-    ends_at = Column(DateTime(timezone=True))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    name = Column(VARCHAR(100), nullable=False)
+    scope = Column(Enum('product', 'order'), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
+    min_quantity = Column(Integer, nullable=True)
+    min_order_amount = Column(Numeric(10, 2), nullable=True)
+    discount_type = Column(Enum('percent', 'fixed'), nullable=False)
+    value = Column(Numeric(10, 2), nullable=False)
+    is_active = Column(TINYINT, nullable=False, default=1)
+    valid_from = Column(Date, nullable=True)
+    valid_until = Column(Date, nullable=True)
 
+# ─── Payment Methods ──────────────────────────────────────────────────────────
+class PaymentMethod(Base):
+    __tablename__ = "payment_methods"
+    id = Column(TINYINT, primary_key=True, index=True)
+    type = Column(Enum('cash', 'card', 'upi', 'wallet'), nullable=False)
+    is_enabled = Column(TINYINT, nullable=False, default=1)
+    upi_id = Column(VARCHAR(100), nullable=True)
+    display_name = Column(VARCHAR(50), nullable=True)
 
-class TableSession(Base):
-    __tablename__ = "table_sessions"
-
+# ─── POS Sessions ─────────────────────────────────────────────────────────────
+class PosSession(Base):
+    __tablename__ = "pos_sessions"
     id = Column(Integer, primary_key=True, index=True)
-    table_id = Column(Integer, ForeignKey("restaurant_tables.id", ondelete="CASCADE"), nullable=False)
-    customer_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    cashier_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    session_pin = Column(String(4), nullable=False)
-    session_token = Column(String(64), unique=True, nullable=False)
-    status = Column(String(20), default="active", nullable=False)
-    opened_at = Column(DateTime(timezone=True), server_default=func.now())
-    last_active_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    closed_at = Column(DateTime(timezone=True))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(Enum('open', 'closed'), nullable=False)
+    opening_cash = Column(Numeric(10, 2), nullable=False)
+    closing_cash = Column(Numeric(10, 2), nullable=True)
+    notes = Column(VARCHAR(500), nullable=True)
+    opened_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    closed_at = Column(TIMESTAMP, nullable=True)
 
-
-class LoyaltyAccount(Base):
-    __tablename__ = "loyalty_accounts"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
-    total_points = Column(Integer, default=0, nullable=False)
-    lifetime_spend = Column(Numeric(12, 2), default=0.00)
-    tier = Column(String(30), default="standard")
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-
+# ─── Orders ───────────────────────────────────────────────────────────────────
 class Order(Base):
     __tablename__ = "orders"
-
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    cashier_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    floor_id = Column(Integer, ForeignKey("restaurant_floors.id", ondelete="SET NULL"))
-    table_id = Column(Integer, ForeignKey("restaurant_tables.id", ondelete="SET NULL"))
-    session_id = Column(Integer, ForeignKey("table_sessions.id", ondelete="SET NULL"))
-    bill_number = Column(String(50), unique=True, nullable=False)
-    total_amount = Column(Numeric(10, 2), nullable=False)
-    subtotal_amount = Column(Numeric(10, 2), default=0.00)
-    tax_amount = Column(Numeric(10, 2), default=0.00)
-    discount_amount = Column(Numeric(10, 2), default=0.00)
-    items = Column(JSON, default=dict)
-    payment_method = Column(String(20), nullable=False)
-    payment_status = Column(String(20), default="pending")
-    order_status = Column(String(20), default="draft")
-    kitchen_status = Column(String(20), default="to_cook")
-    is_scanned = Column(Boolean, default=False)
-    razorpay_order_id = Column(String(100))
-    razorpay_payment_id = Column(String(100))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    wallet_amount = Column(Numeric(10, 2), default=0.00)
-    online_amount = Column(Numeric(10, 2), default=0.00)
-    coupon_code = Column(String(50))
-    loyalty_points_earned = Column(Integer, default=0, nullable=False)
-    closed_at = Column(DateTime(timezone=True))
+    order_number = Column(VARCHAR(20), nullable=False, unique=True)
+    source = Column(Enum('pos', 'cashier', 'self_order'), nullable=False)
+    table_id = Column(SMALLINT, ForeignKey("tables_master.id"), nullable=True)
+    table_session_id = Column(BigInteger, ForeignKey("table_sessions.id"), nullable=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
+    pos_session_id = Column(Integer, ForeignKey("pos_sessions.id"), nullable=True)
+    placed_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    waiter_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    status = Column(Enum('draft', 'sent_to_kitchen', 'paid', 'cancelled'), nullable=False, default='draft')
+    coupon_id = Column(Integer, ForeignKey("coupons.id"), nullable=True)
+    subtotal = Column(Numeric(10, 2), nullable=False, default=0.00)
+    tax_total = Column(Numeric(10, 2), nullable=False, default=0.00)
+    discount_total = Column(Numeric(10, 2), nullable=False, default=0.00)
+    total = Column(Numeric(10, 2), nullable=False, default=0.00)
+    notes = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
 
-    user = relationship("User", back_populates="orders", foreign_keys=[user_id])
-    items_list = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    customer = relationship("Customer", back_populates="orders")
+    items = relationship("OrderItem", back_populates="order")
 
-
+# ─── Order Items ─────────────────────────────────────────────────────────────
 class OrderItem(Base):
     __tablename__ = "order_items"
+    id = Column(BigInteger, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    quantity = Column(Numeric(8, 2), nullable=False)
+    unit_price = Column(Numeric(10, 2), nullable=False)
+    line_discount = Column(Numeric(10, 2), nullable=False, default=0.00)
+    line_total = Column(Numeric(10, 2), nullable=False)
+    kitchen_status = Column(Enum('pending', 'claimed', 'done'), nullable=False, default='pending')
+    notes = Column(VARCHAR(255), nullable=True)
+    claimed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    claimed_at = Column(TIMESTAMP, nullable=True)
+    completed_at = Column(TIMESTAMP, nullable=True)
 
+    order = relationship("Order", back_populates="items")
+    product = relationship("Product")
+
+# ─── Payments ─────────────────────────────────────────────────────────────────
+class Payment(Base):
+    __tablename__ = "payments"
     id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
-    food_item_id = Column(Integer, ForeignKey("food_items.id", ondelete="CASCADE"), nullable=False)
-    quantity = Column(Integer, nullable=False)
-    price = Column(Numeric(10, 2), nullable=False)
-    status = Column(String(20), default="pending")
-    kitchen_status = Column(String(20), default="to_cook")
-    assigned_chef_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    sent_to_kitchen_at = Column(DateTime(timezone=True))
-    completed_at = Column(DateTime(timezone=True))
-
-    order = relationship("Order", back_populates="items_list")
-    food_item = relationship("FoodItem")
-
-
-class WalletTransaction(Base):
-    __tablename__ = "wallet_transactions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    transaction_type = Column(String(20), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    payment_method_id = Column(TINYINT, ForeignKey("payment_methods.id"), nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
-    description = Column(String(255))
-    order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"))
-    performed_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    amount_received = Column(Numeric(10, 2), nullable=True)
+    change_due = Column(Numeric(10, 2), nullable=True)
+    reference_code = Column(VARCHAR(100), nullable=True)
+    status = Column(Enum('pending', 'completed', 'failed', 'refunded'), nullable=False)
+    received_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
 
-    user = relationship("User", back_populates="wallet_transactions", foreign_keys=[user_id])
+# ─── Pin Rate Limits ──────────────────────────────────────────────────────────
+class PinRateLimit(Base):
+    __tablename__ = "pin_rate_limits"
+    id = Column(Integer, primary_key=True, index=True)
+    table_session_id = Column(BigInteger, ForeignKey("table_sessions.id"), nullable=False)
+    ip_address = Column(VARCHAR(45), nullable=False)
+    failed_attempts = Column(TINYINT, nullable=False, default=0)
+    locked_until = Column(TIMESTAMP, nullable=True)
+    last_attempt_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+
+# ─── Table Sessions ───────────────────────────────────────────────────────────
+class TableSession(Base):
+    __tablename__ = "table_sessions"
+    id = Column(BigInteger, primary_key=True, index=True)
+    table_id = Column(SMALLINT, ForeignKey("tables_master.id"), nullable=False)
+    status = Column(Enum('active', 'closed'), nullable=False)
+    lock_mode = Column(Enum('locked', 'unlocked'), nullable=False)
+    device_token = Column(CHAR(36), nullable=True)
+    pin_code = Column(CHAR(4), nullable=True)
+    opened_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    closed_at = Column(TIMESTAMP, nullable=True)
+    last_activity_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+
+# ─── Suppliers ────────────────────────────────────────────────────────────────
+class Supplier(Base):
+    __tablename__ = "suppliers"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(VARCHAR(120), nullable=False)
+    contact_person = Column(VARCHAR(100), nullable=True)
+    mobile_number = Column(VARCHAR(15), nullable=True)
+    email = Column(VARCHAR(150), nullable=True)
+    address = Column(VARCHAR(255), nullable=True)
+    is_active = Column(TINYINT, nullable=False, default=1)
+
+# ─── Purchase Orders ──────────────────────────────────────────────────────────
+class PurchaseOrder(Base):
+    __tablename__ = "purchase_orders"
+    id = Column(Integer, primary_key=True, index=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False)
+    status = Column(Enum('draft', 'ordered', 'received', 'cancelled'), nullable=False)
+    notes = Column(Text, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    received_at = Column(TIMESTAMP, nullable=True)
+
+class PurchaseOrderItem(Base):
+    __tablename__ = "purchase_order_items"
+    id = Column(Integer, primary_key=True, index=True)
+    purchase_order_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False)
+    inventory_item_id = Column(Integer, ForeignKey("inventory_items.id"), nullable=False)
+    quantity = Column(Numeric(10, 2), nullable=False)
+    unit_cost = Column(Numeric(10, 2), nullable=False)
+
+# ─── Loyalty ──────────────────────────────────────────────────────────────────
+class LoyaltyCredit(Base):
+    __tablename__ = "loyalty_credits"
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    credits_earned = Column(Integer, nullable=False, default=0)
+    credits_redeemed = Column(Integer, nullable=False, default=0)
+    total_credits = Column(Integer, nullable=False, default=0)
+    last_visit_at = Column(TIMESTAMP, nullable=True)
+
+class LoyaltyTransaction(Base):
+    __tablename__ = "loyalty_transactions"
+    id = Column(BigInteger, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    type = Column(Enum('earn', 'redeem'), nullable=False)
+    amount = Column(Integer, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+
+# ─── Stock Reservations ───────────────────────────────────────────────────────
+class StockReservation(Base):
+    __tablename__ = "stock_reservations"
+    id = Column(BigInteger, primary_key=True, index=True)
+    order_item_id = Column(BigInteger, ForeignKey("order_items.id"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    quantity = Column(Numeric(10, 2), nullable=False)
+    status = Column(Enum('reserved', 'finalized', 'released'), nullable=False, default='reserved')
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+
+# ─── Audit Logs ───────────────────────────────────────────────────────────────
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(BigInteger, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    action = Column(VARCHAR(60), nullable=False)
+    entity_type = Column(VARCHAR(40), nullable=False)
+    entity_id = Column(Integer, nullable=False)
+    details = Column(JSON, nullable=True)
+    ip_address = Column(VARCHAR(45), nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+
+# ─── Receipt Logs ─────────────────────────────────────────────────────────────
+class ReceiptLog(Base):
+    __tablename__ = "receipt_logs"
+    id = Column(BigInteger, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    recipient_email = Column(VARCHAR(150), nullable=False)
+    sent_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    delivery_status = Column(Enum('sent', 'failed'), nullable=False)
+    error_message = Column(Text, nullable=True)
+
+# ─── User Sessions Log ───────────────────────────────────────────────────────────
+class UserSessionsLog(Base):
+    __tablename__ = "user_sessions_log"
+    id = Column(BigInteger, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    login_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    logout_at = Column(TIMESTAMP, nullable=True)
+    ip_address = Column(VARCHAR(45), nullable=True)
+    user_agent = Column(Text, nullable=True)
+
+# ─── Venue Settings ───────────────────────────────────────────────────────────
+class VenueSetting(Base):
+    __tablename__ = "venue_settings"
+    id = Column(TINYINT, primary_key=True, index=True)
+    venue_name = Column(VARCHAR(100), nullable=False, default="Cafe Odoo")
+    self_ordering_enabled = Column(TINYINT, nullable=False, default=1)
+    self_ordering_mode = Column(Enum('kiosk', 'qr_table', 'both'), nullable=False, default='qr_table')
+    self_order_lock_mode = Column(Enum('pin', 'none', 'otp'), nullable=False, default='pin')
+    session_timeout_minutes = Column(SmallInteger, nullable=False, default=15)
+    menu_background_color = Column(CHAR(7), nullable=False, default="#FFFFFF")
+    menu_background_image_url = Column(VARCHAR(500), nullable=True)
+    currency_symbol = Column(VARCHAR(5), nullable=False, default="₹")
+    tax_label = Column(VARCHAR(20), nullable=False, default="GST")
+    receipt_footer_text = Column(VARCHAR(255), nullable=True)
+    kds_auto_advance = Column(TINYINT, nullable=False, default=0)
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
