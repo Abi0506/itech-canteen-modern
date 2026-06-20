@@ -4,6 +4,17 @@ import { TrendingUp, ShoppingBag, DollarSign, Users } from 'lucide-react';
 
 const formatCurrency = (value) => `Rs.${Number(value || 0).toFixed(2)}`;
 
+const formatDayLabel = (dateString) => {
+  const parsedDate = new Date(`${dateString}T00:00:00`);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return dateString;
+  }
+  return parsedDate.toLocaleDateString('en-US', {
+    day: '2-digit',
+    month: 'short',
+  });
+};
+
 const PieChartCard = ({ data }) => {
   const total = data.reduce((sum, item) => sum + Number(item.revenue || 0), 0);
   const colors = ['#b04a2f', '#d97a47', '#e8b563', '#8a6d3b', '#f2d7a1', '#6d4c41'];
@@ -88,24 +99,36 @@ const Reports = () => {
   const [categories, setCategories] = useState([]);
   const [dayWiseSummary, setDayWiseSummary] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const [dRes, tRes, pRes, cRes, sRes] = await Promise.all([
+        setLoadError('');
+        const results = await Promise.allSettled([
           api.get('/reports/dashboard'),
           api.get('/reports/sales-trend'),
           api.get('/reports/top-products'),
-          api.get('/reports/top-categories'),
-          api.get('/reports/day-wise-summary')
+          api.get('/reports/top-categories')
         ]);
-        setDashboard(dRes.data);
-        setTrends(tRes.data);
-        setProducts(pRes.data);
-        setCategories(cRes.data);
-        setDayWiseSummary(sRes.data);
+        const [dashboardRes, trendsRes, productsRes, categoriesRes] = results;
+
+        if (dashboardRes.status === 'fulfilled') setDashboard(dashboardRes.value.data);
+        if (trendsRes.status === 'fulfilled') setTrends(trendsRes.value.data || []);
+        if (productsRes.status === 'fulfilled') setProducts(productsRes.value.data || []);
+        if (categoriesRes.status === 'fulfilled') setCategories(categoriesRes.value.data || []);
+
+        const failedSections = results
+          .map((result, index) => ({ result, index }))
+          .filter(({ result }) => result.status === 'rejected')
+          .map(({ index }) => ['dashboard', 'sales trend', 'top products', 'top categories'][index]);
+
+        if (failedSections.length > 0) {
+          setLoadError(`Some analytics feeds could not load: ${failedSections.join(', ')}.`);
+        }
       } catch (e) {
         console.error(e);
+        setLoadError('Reports could not be loaded right now.');
       } finally {
         setLoading(false);
       }
@@ -113,10 +136,21 @@ const Reports = () => {
     fetchReports();
   }, []);
 
+  const displayDayWiseSummary = useMemo(() => {
+    if (dayWiseSummary.length > 0) {
+      return dayWiseSummary;
+    }
+    return trends.map((trend) => ({
+      ...trend,
+      label: formatDayLabel(trend.date),
+      customers: trend.customers || 0,
+    }));
+  }, [dayWiseSummary, trends]);
+
   const bestDay = useMemo(() => {
-    if (!dayWiseSummary.length) return null;
-    return [...dayWiseSummary].sort((a, b) => b.revenue - a.revenue)[0];
-  }, [dayWiseSummary]);
+    if (!displayDayWiseSummary.length) return null;
+    return [...displayDayWiseSummary].sort((a, b) => b.revenue - a.revenue)[0];
+  }, [displayDayWiseSummary]);
 
   if (loading) {
     return (
@@ -132,6 +166,12 @@ const Reports = () => {
         <h1 className="font-headline font-bold text-2xl text-on-surface">Reports & Analytics</h1>
         <p className="text-secondary text-sm">Interactive revenue trends, top product performance, and category metrics.</p>
       </div>
+
+      {loadError && (
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
+          {loadError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-surface-container-low border border-outline/10 p-5 rounded-2xl flex items-center justify-between">
@@ -172,6 +212,40 @@ const Reports = () => {
           <div className="p-3 bg-primary/5 text-primary rounded-full">
             <DollarSign size={20} />
           </div>
+        </div>
+      </div>
+
+      <div className="bg-surface-container-low border border-outline/10 p-6 rounded-2xl space-y-4">
+        <div className="flex items-center gap-2">
+          <Users size={18} className="text-primary" />
+          <h3 className="font-headline font-bold text-sm text-on-surface">Statistics Table</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-outline/10 text-outline text-xs uppercase tracking-wider">
+                <th className="py-3 pr-4 font-bold">Date</th>
+                <th className="py-3 pr-4 font-bold">Revenue</th>
+                <th className="py-3 pr-4 font-bold">Orders</th>
+                <th className="py-3 font-bold">Customers</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayDayWiseSummary.map((day) => (
+                <tr key={`stats-${day.date}`} className="border-b border-outline/10 text-sm last:border-0">
+                  <td className="py-3 pr-4 text-secondary">{day.label || day.date}</td>
+                  <td className="py-3 pr-4 font-semibold text-on-surface">{formatCurrency(day.revenue)}</td>
+                  <td className="py-3 pr-4 text-secondary">{day.orders}</td>
+                  <td className="py-3 text-secondary">{day.customers}</td>
+                </tr>
+              ))}
+              {displayDayWiseSummary.length === 0 && (
+                <tr>
+                  <td colSpan="4" className="py-4 text-sm text-secondary">No statistical summary available yet.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -243,40 +317,6 @@ const Reports = () => {
         </div>
 
         <PieChartCard data={categories} />
-      </div>
-
-      <div className="bg-surface-container-low border border-outline/10 p-6 rounded-2xl space-y-4">
-        <div className="flex items-center gap-2">
-          <Users size={18} className="text-primary" />
-          <h3 className="font-headline font-bold text-sm text-on-surface">Day-Wise Revenue and Customers</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-outline/10 text-outline text-xs uppercase tracking-wider">
-                <th className="py-3 pr-4 font-bold">Date</th>
-                <th className="py-3 pr-4 font-bold">Revenue</th>
-                <th className="py-3 pr-4 font-bold">Orders</th>
-                <th className="py-3 font-bold">Customers</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dayWiseSummary.map((day) => (
-                <tr key={day.date} className="border-b border-outline/10 text-sm last:border-0">
-                  <td className="py-3 pr-4 text-secondary">{day.date}</td>
-                  <td className="py-3 pr-4 font-semibold text-on-surface">{formatCurrency(day.revenue)}</td>
-                  <td className="py-3 pr-4 text-secondary">{day.orders}</td>
-                  <td className="py-3 text-secondary">{day.customers}</td>
-                </tr>
-              ))}
-              {dayWiseSummary.length === 0 && (
-                <tr>
-                  <td colSpan="4" className="py-4 text-sm text-secondary">No daily summary available yet.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   );

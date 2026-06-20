@@ -66,13 +66,20 @@ def get_sales_trend(db: Session = Depends(get_db)):
 @router.get("/top-products", dependencies=[admin_dependency])
 def get_top_products(db: Session = Depends(get_db)):
     # Query top items
-    items = db.query(
-        Product.name,
-        func.sum(OrderItem.quantity).label("total_qty"),
-        func.sum(OrderItem.line_total).label("total_revenue")
-    ).join(OrderItem).join(Order).filter(
-        Order.status == 'paid'
-    ).group_by(Product.name).order_by(func.sum(OrderItem.quantity).desc()).limit(5).all()
+    items = (
+        db.query(
+            Product.name,
+            func.sum(OrderItem.quantity).label("total_qty"),
+            func.sum(OrderItem.line_total).label("total_revenue"),
+        )
+        .join(OrderItem, OrderItem.product_id == Product.id)
+        .join(Order, Order.id == OrderItem.order_id)
+        .filter(Order.status == 'paid')
+        .group_by(Product.id, Product.name)
+        .order_by(func.sum(OrderItem.quantity).desc())
+        .limit(5)
+        .all()
+    )
     
     return [
         {
@@ -85,12 +92,19 @@ def get_top_products(db: Session = Depends(get_db)):
 
 @router.get("/top-categories", dependencies=[admin_dependency])
 def get_top_categories(db: Session = Depends(get_db)):
-    categories = db.query(
-        Category.name,
-        func.sum(OrderItem.line_total).label("total_revenue")
-    ).join(Product, Product.category_id == Category.id).join(OrderItem).join(Order).filter(
-        Order.status == 'paid'
-    ).group_by(Category.name).order_by(func.sum(OrderItem.line_total).desc()).all()
+    categories = (
+        db.query(
+            Category.name,
+            func.sum(OrderItem.line_total).label("total_revenue"),
+        )
+        .join(Product, Product.category_id == Category.id)
+        .join(OrderItem, OrderItem.product_id == Product.id)
+        .join(Order, Order.id == OrderItem.order_id)
+        .filter(Order.status == 'paid')
+        .group_by(Category.id, Category.name)
+        .order_by(func.sum(OrderItem.line_total).desc())
+        .all()
+    )
     
     return [
         {

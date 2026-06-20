@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import api from '../../utils/api';
 
-const formatMoney = (value) => `₹${Number(value || 0).toFixed(2)}`;
+const formatMoney = (value) => `Rs.${Number(value || 0).toFixed(2)}`;
 
 const SelfOrder = () => {
   const { tableId } = useParams();
@@ -34,6 +34,8 @@ const SelfOrder = () => {
   const [confirmedQuantities, setConfirmedQuantities] = useState({});
   const [signup, setSignup] = useState({ name: '', phone_no: '', email: '' });
   const [paymentMethod, setPaymentMethod] = useState('upi');
+  const [allItemsDone, setAllItemsDone] = useState(false);
+  const [statusChecking, setStatusChecking] = useState(false);
   const [sessionPin, setSessionPin] = useState(
     () => sessionStorage.getItem(`self-order-pin-${tableId}`) || '',
   );
@@ -41,6 +43,10 @@ const SelfOrder = () => {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const orderItems = useMemo(() => Object.values(order?.items || {}), [order]);
+  const completedItems = orderItems.filter((item) => item.status === 'done').length;
+  const isReadyForPayment = orderItems.length > 0 && completedItems === orderItems.length;
+  const canProceedToPayment = allItemsDone || isReadyForPayment;
 
   const loadPublicMenu = async () => {
     setError('');
@@ -60,6 +66,14 @@ const SelfOrder = () => {
     loadPublicMenu();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableId]);
+
+  useEffect(() => {
+    if (!order?.id || (screen !== 'awaiting_payment' && screen !== 'payment')) return undefined;
+    checkKitchenStatus(true);
+    const interval = setInterval(() => checkKitchenStatus(true), 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.id, screen]);
 
   const products = useMemo(
     () =>
@@ -123,6 +137,93 @@ const SelfOrder = () => {
     setCart(nextCart);
     setConfirmedQuantities(nextConfirmed);
   };
+
+  const checkKitchenStatus = async (silent = false) => {
+    if (!order?.id) return false;
+    if (!silent) {
+      setStatusChecking(true);
+      setError('');
+    }
+    try {
+      const response = await api.get(`/self-order/orders/${order.id}`);
+      const nextOrder = response.data.order || null;
+      const nextOrderItems = Object.values(nextOrder?.items || {});
+      const nextDone = nextOrderItems.length > 0 && nextOrderItems.every((item) => item.status === 'done');
+      if (nextOrder) {
+        setOrder(nextOrder);
+        hydrateOrder(nextOrder);
+      }
+      setAllItemsDone(nextDone);
+      if (nextOrder?.status === 'paid') {
+        setScreen('confirmed');
+        setMessage('Payment completed successfully. Your bill is settled.');
+      } else if (nextDone) {
+        if (screen !== 'payment') {
+          setScreen('awaiting_payment');
+        }
+        if (!silent) {
+          setMessage('All items are finished by the chef. You can now proceed to payment.');
+        }
+      } else if (screen !== 'payment') {
+        setScreen('awaiting_payment');
+        if (!silent) {
+          setMessage('Food is yet to be prepared.');
+        }
+      }
+      return nextDone;
+    } catch (err) {
+      const status = err.response?.status;
+      const detail = err.response?.data?.detail || '';
+      if (status === 404 || /not found/i.test(detail)) {
+        setError('');
+        setMessage('Food is yet to be prepared.');
+        setScreen('awaiting_payment');
+      } else if (!silent) {
+        setError(detail || 'Could not check kitchen status.');
+      }
+      return false;
+    } finally {
+      if (!silent) {
+        setStatusChecking(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!order?.id) return undefined;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const socketUrl = `${protocol}://${window.location.hostname}:8000/ws/customer_display`;
+    const socket = new WebSocket(socketUrl);
+
+    socket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        const eventOrderId = payload.order_id ? Number(payload.order_id) : null;
+        const eventTableId = payload.table_id ? Number(payload.table_id) : null;
+
+        if (eventOrderId && eventOrderId !== Number(order.id)) return;
+        if (eventTableId && table?.id && eventTableId !== Number(table.id)) return;
+
+        if (payload.event === 'payment_completed') {
+          setScreen('confirmed');
+          setMessage('Payment completed successfully. Your bill is settled.');
+          setAllItemsDone(true);
+          loadPublicMenu();
+          return;
+        }
+
+        if (['item_completed', 'order_sent_to_kitchen', 'cart_updated'].includes(payload.event)) {
+          checkKitchenStatus(true);
+        }
+      } catch (error) {
+        console.error('Failed to process customer websocket event', error);
+      }
+    };
+
+    return () => socket.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.id, table?.id]);
 
   const beginOrdering = (payload) => {
     setSession(payload.session || null);
@@ -198,7 +299,8 @@ const SelfOrder = () => {
       });
       setOrder(response.data);
       hydrateOrder(response.data);
-      setScreen('payment');
+      setAllItemsDone(false);
+      setScreen('awaiting_payment');
       setMessage(
         hasConfirmedItems
           ? 'Your add-on items were confirmed and sent to the kitchen.'
@@ -214,6 +316,13 @@ const SelfOrder = () => {
 
   const payForOrder = async () => {
     if (!order?.id) return;
+    if (!canProceedToPayment) {
+      const ready = await checkKitchenStatus();
+      if (!ready) {
+        setError('Please wait until the chef marks every item as done before payment.');
+        return;
+      }
+    }
     setBusy(true);
     setError('');
     try {
@@ -353,7 +462,7 @@ const SelfOrder = () => {
           </div>
         )}
 
-        {screen !== 'review' && screen !== 'payment' && screen !== 'confirmed' && (
+        {screen !== 'review' && screen !== 'awaiting_payment' && screen !== 'payment' && screen !== 'confirmed' && (
           <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
             <aside className="hidden lg:block">
               <div className="sticky top-28 rounded-3xl border border-outline/10 bg-surface-container-low p-4">
@@ -568,6 +677,89 @@ const SelfOrder = () => {
           </main>
         )}
 
+        {screen === 'awaiting_payment' && (
+          <main className="mx-auto max-w-2xl py-8">
+            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10">
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
+                Waiting for chef
+              </p>
+              <h2 className="mt-2 font-headline text-3xl font-black">Are all items done?</h2>
+              <p className="mt-3 text-sm text-secondary">
+                Payment is locked until the chef finishes every item for this table. We will move
+                you to payment as soon as everything is marked done.
+              </p>
+
+              <div className="mt-6 rounded-2xl border border-outline/10 bg-surface-container-lowest p-5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-secondary">Items finished</span>
+                  <span className="font-black text-on-surface">
+                    {Object.values(order?.items || {}).filter((item) => item.status === 'done').length}/
+                    {Object.keys(order?.items || {}).length}
+                  </span>
+                </div>
+                <div className="mt-2 flex justify-between text-sm">
+                  <span className="text-secondary">Total due later</span>
+                  <span className="font-black text-primary">{formatMoney(order?.total_amount)}</span>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                {orderItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-3"
+                  >
+                    <div>
+                      <p className="font-semibold text-on-surface">{item.name}</p>
+                      <p className="text-xs text-secondary">
+                        {item.quantity} x {formatMoney(item.rate)}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
+                        item.status === 'done'
+                          ? 'bg-emerald-500/10 text-emerald-700'
+                          : item.status === 'claimed'
+                            ? 'bg-amber-500/10 text-amber-700'
+                            : 'bg-outline/10 text-secondary'
+                      }`}
+                    >
+                      {item.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-sm text-secondary">
+                Press "Check kitchen status" after the chef says everything is done, or wait for automatic detection.
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (canProceedToPayment) {
+                    setScreen('payment');
+                  }
+                }}
+                disabled={!canProceedToPayment}
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-5 py-4 font-black text-primary transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <CheckCircle2 size={18} />
+                {canProceedToPayment ? 'Proceed to payment' : 'Payment locked until all items are done'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => checkKitchenStatus()}
+                disabled={statusChecking}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 font-black text-on-primary disabled:opacity-50"
+              >
+                {statusChecking ? 'Checking...' : 'Check kitchen status'}
+              </button>
+            </div>
+          </main>
+        )}
+
         {screen === 'payment' && (
           <main className="mx-auto max-w-2xl py-8">
             <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10">
@@ -576,7 +768,7 @@ const SelfOrder = () => {
               </p>
               <h2 className="mt-2 font-headline text-3xl font-black">Choose a payment method</h2>
               <p className="mt-3 text-sm text-secondary">
-                Your order is already sent to the kitchen. Please complete payment to close the table bill.
+                All items are done. Please complete payment to close the table bill.
               </p>
 
               <div className="mt-6 rounded-2xl border border-outline/10 bg-surface-container-lowest p-5">
@@ -627,7 +819,7 @@ const SelfOrder = () => {
               <button
                 type="button"
                 onClick={payForOrder}
-                disabled={busy}
+                disabled={busy || !canProceedToPayment}
                 className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 font-black text-on-primary disabled:opacity-50"
               >
                 <CheckCircle2 size={18} />

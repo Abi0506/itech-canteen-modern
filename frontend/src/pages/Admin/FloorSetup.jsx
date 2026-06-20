@@ -9,7 +9,7 @@ const FloorSetup = () => {
   // Form states
   const [showFloorModal, setShowFloorModal] = useState(false);
   const [floorName, setFloorName] = useState('');
-  
+
   const [showTableModal, setShowTableModal] = useState(false);
   const [selectedFloorId, setSelectedFloorId] = useState('');
   const [tableNumber, setTableNumber] = useState('');

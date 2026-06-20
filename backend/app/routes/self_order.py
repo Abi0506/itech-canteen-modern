@@ -130,6 +130,13 @@ def _serialize_order(db: Session, order: Order | None) -> dict | None:
     }
 
 
+def _all_order_items_done(order: Order) -> bool:
+    items = list(order.items or [])
+    if not items:
+        return False
+    return all(item.kitchen_status == "done" for item in items)
+
+
 def _recalculate_order(order: Order) -> None:
     subtotal = sum((item.line_total for item in order.items), Decimal("0.00"))
     order.subtotal = subtotal
@@ -367,6 +374,201 @@ def _build_menu(db: Session) -> list[dict]:
                     }
                     for product in products
                 ],
+        tax_total=Decimal("0.00"),
+        discount_total=Decimal("0.00"),
+        total=Decimal("0.00"),
+    )
+    db.add(order)
+    db.flush()
+    table.current_order_id = order.id
+    return order
+
+
+def _get_confirmed_quantity(db: Session, order_item_id: int) -> Decimal:
+    quantity = (
+        db.query(StockReservation.quantity)
+        .filter(
+            StockReservation.order_item_id == order_item_id,
+            StockReservation.status.in_(["reserved", "finalized"]),
+        )
+        .scalar()
+    )
+    return Decimal(str(quantity or 0))
+
+
+def _sync_order_items(db: Session, order: Order, requested_items: list[dict]) -> None:
+    desired_by_product: dict[int, Decimal] = {}
+    for requested in requested_items:
+        product_id = int(requested.get("product_id") or requested.get("id") or 0)
+        quantity = Decimal(str(requested.get("quantity", 0)))
+        if not product_id or quantity < 0:
+            raise HTTPException(status_code=400, detail="Invalid product or quantity")
+        desired_by_product[product_id] = desired_by_product.get(product_id, Decimal("0.00")) + quantity
+
+    desired_by_product = {
+        product_id: quantity
+        for product_id, quantity in desired_by_product.items()
+        if quantity > 0
+    }
+    if not desired_by_product:
+        raise HTTPException(status_code=400, detail="Add at least one item before confirming")
+
+    existing_by_product: dict[int, list[OrderItem]] = {}
+    confirmed_by_product: dict[int, Decimal] = {}
+    for order_item in list(order.items):
+        existing_by_product.setdefault(order_item.product_id, []).append(order_item)
+        confirmed_by_product[order_item.product_id] = (
+            confirmed_by_product.get(order_item.product_id, Decimal("0.00"))
+            + _get_confirmed_quantity(db, order_item.id)
+        )
+
+    for product_id, confirmed_quantity in confirmed_by_product.items():
+        if desired_by_product.get(product_id, Decimal("0.00")) < confirmed_quantity:
+            raise HTTPException(
+                status_code=400,
+                detail="Confirmed item quantities cannot be reduced",
+            )
+
+    all_product_ids = set(existing_by_product) | set(desired_by_product)
+    for product_id in all_product_ids:
+        product = db.query(Product).filter(Product.id == product_id, Product.is_active == True).first()
+        if not product:
+            raise HTTPException(status_code=400, detail=f"Product {product_id} is not available")
+
+        lines = existing_by_product.get(product_id, [])
+        current_quantity = sum((line.quantity for line in lines), Decimal("0.00"))
+        desired_quantity = desired_by_product.get(product_id, Decimal("0.00"))
+
+        if desired_quantity > current_quantity:
+            increase = desired_quantity - current_quantity
+            pending_line = next((line for line in lines if line.kitchen_status == "pending"), None)
+            if pending_line:
+                pending_line.quantity += increase
+                pending_line.line_total = pending_line.unit_price * pending_line.quantity
+            else:
+                db.add(
+                    OrderItem(
+                        order_id=order.id,
+                        product_id=product.id,
+                        quantity=increase,
+                        unit_price=product.price,
+                        line_discount=Decimal("0.00"),
+                        line_total=product.price * increase,
+                        kitchen_status="pending",
+                    )
+                )
+        elif desired_quantity < current_quantity:
+            reduction = current_quantity - desired_quantity
+            for line in reversed(lines):
+                if reduction <= 0:
+                    break
+                confirmed_quantity = _get_confirmed_quantity(db, line.id)
+                reducible = max(Decimal("0.00"), line.quantity - confirmed_quantity)
+                amount = min(reduction, reducible)
+                if amount <= 0:
+                    continue
+                line.quantity -= amount
+                reduction -= amount
+                if line.quantity == 0:
+                    db.delete(line)
+                else:
+                    line.line_total = line.unit_price * line.quantity
+            if reduction > 0:
+                raise HTTPException(status_code=400, detail="Confirmed item quantities cannot be reduced")
+
+    db.flush()
+    db.refresh(order)
+    _recalculate_order(order)
+
+
+def _deduct_newly_confirmed_stock(db: Session, order: Order) -> None:
+    inventory_actor = db.query(User).filter(User.is_active == True).order_by(User.id.asc()).first()
+
+    for item in order.items:
+        confirmed_quantity = _get_confirmed_quantity(db, item.id)
+        quantity_to_confirm = item.quantity - confirmed_quantity
+        if quantity_to_confirm < 0:
+            raise HTTPException(status_code=400, detail="Confirmed item quantities cannot be reduced")
+        if quantity_to_confirm == 0:
+            continue
+
+        inventory_item = (
+            db.query(InventoryItem)
+            .filter(InventoryItem.product_id == item.product_id)
+            .with_for_update()
+            .first()
+        )
+        if inventory_item:
+            if inventory_item.current_stock < quantity_to_confirm:
+                product_name = item.product.name if item.product else f"Product {item.product_id}"
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Only {inventory_item.current_stock} of {product_name} is available",
+                )
+            inventory_item.current_stock -= quantity_to_confirm
+            if inventory_actor:
+                db.add(
+                    StockMovement(
+                        inventory_item_id=inventory_item.id,
+                        movement_type="sale_out",
+                        quantity=quantity_to_confirm,
+                        reference_order_id=order.id,
+                        performed_by=inventory_actor.id,
+                        note=f"Self-order confirmation {order.order_number}",
+                    )
+                )
+
+        reservation = (
+            db.query(StockReservation)
+            .filter(
+                StockReservation.order_item_id == item.id,
+                StockReservation.status.in_(["reserved", "finalized"]),
+            )
+            .first()
+        )
+        if reservation:
+            reservation.quantity = item.quantity
+            reservation.status = "finalized"
+        else:
+            db.add(
+                StockReservation(
+                    order_item_id=item.id,
+                    product_id=item.product_id,
+                    quantity=item.quantity,
+                    status="finalized",
+                )
+            )
+
+
+def _build_menu(db: Session) -> list[dict]:
+    categories = db.query(Category).filter(Category.is_active == True).order_by(Category.display_order).all()
+    menu = []
+    for category in categories:
+        products = (
+            db.query(Product)
+            .filter(Product.category_id == category.id, Product.is_active == True)
+            .order_by(Product.name)
+            .all()
+        )
+        menu.append(
+            {
+                "id": category.id,
+                "name": category.name,
+                "color": category.color_hex,
+                "items": [
+                    {
+                        "id": product.id,
+                        "category_id": product.category_id,
+                        "name": product.name,
+                        "description": product.description,
+                        "price": float(product.price),
+                        "uom": product.uom,
+                        "quantity_available": float(product.inventory_item.current_stock)
+                        if product.inventory_item
+                        else 999,
+                    }
+                    for product in products
+                ],
             }
         )
     return menu
@@ -379,6 +581,7 @@ def get_menu(table_id: int, db: Session = Depends(get_db)):
     return {
         "table": _serialize_table(table),
         "session_active": session is not None,
+        "table_blocked": table.current_status == "reserved",
         "menu": _build_menu(db),
     }
 
@@ -390,6 +593,10 @@ async def start_table_session(table_id: int, payload: dict, db: Session = Depend
         raise HTTPException(status_code=400, detail="Self-ordering is currently disabled")
 
     table = _get_table(db, table_id)
+
+    if table.current_status == "reserved":
+        raise HTTPException(status_code=400, detail="This table is currently blocked by the cashier. Please ask staff for help.")
+
     customer = _get_or_create_customer(db, payload)
 
     session = _get_active_session(db, table.id)
@@ -407,7 +614,6 @@ async def start_table_session(table_id: int, payload: dict, db: Session = Depend
     db.add(session)
     db.flush()
 
-    table.current_status = "occupied"
     order = _get_or_create_order(db, table, session, customer.id)
     db.commit()
     db.refresh(order)
@@ -499,6 +705,12 @@ async def send_order_to_kitchen(order_id: int, db: Session = Depends(get_db)):
 
     _deduct_newly_confirmed_stock(db, order)
     order.status = "sent_to_kitchen"
+
+    if order.table_id:
+        table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
+        if table and table.current_status != "occupied":
+            table.current_status = "occupied"
+
     db.commit()
     db.refresh(order)
     await manager.broadcast_all({"event": "order_sent_to_kitchen", "table_id": order.table_id, "order_id": order.id})
@@ -517,6 +729,12 @@ async def confirm_order(order_id: int, payload: dict, db: Session = Depends(get_
     _sync_order_items(db, order, payload.get("items", []))
     _deduct_newly_confirmed_stock(db, order)
     order.status = "sent_to_kitchen"
+
+    if order.table_id:
+        table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
+        if table and table.current_status != "occupied":
+            table.current_status = "occupied"
+
     if order.table_session_id:
         session = db.query(TableSession).filter(TableSession.id == order.table_session_id).first()
         if session:
@@ -533,6 +751,17 @@ async def confirm_order(order_id: int, payload: dict, db: Session = Depends(get_
         }
     )
     return _serialize_order(db, order)
+
+
+@router.get("/orders/{order_id}")
+def get_order_status(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return {
+        "order": _serialize_order(db, order),
+        "all_items_done": _all_order_items_done(order),
+    }
 
 
 @router.post("/orders/{order_id}/coupon")
@@ -581,6 +810,8 @@ async def pay_order(order_id: int, payload: dict, db: Session = Depends(get_db))
         raise HTTPException(status_code=404, detail="Order not found")
     if order.status == "paid":
         return _serialize_order(db, order)
+    if not _all_order_items_done(order):
+        raise HTTPException(status_code=400, detail="Please wait until all items are completed by the chef before payment")
 
     payment_type = str(payload.get("payment_method", "upi")).lower()
     if payment_type == "cash":

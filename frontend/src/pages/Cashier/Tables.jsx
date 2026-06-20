@@ -81,11 +81,10 @@ const Tables = () => {
                     <h3 className="font-headline font-bold text-base text-on-surface">Table {t.table_number}</h3>
                     <p className="text-[10px] text-outline font-bold uppercase">{t.seats} seats</p>
                   </div>
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${
-                    t.current_status === 'available' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
-                    t.current_status === 'occupied' ? 'bg-primary-fixed text-on-primary-fixed-variant border-primary/10' :
-                    'bg-amber-100 text-amber-800 border-amber-200'
-                  }`}>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${t.current_status === 'available' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                      t.current_status === 'occupied' ? 'bg-primary-fixed text-on-primary-fixed-variant border-primary/10' :
+                        'bg-amber-100 text-amber-800 border-amber-200'
+                    }`}>
                     {statusText}
                   </span>
                 </div>
@@ -102,7 +101,7 @@ const Tables = () => {
                 <span className="text-[10px] text-primary font-bold uppercase tracking-wider">
                   {t.current_status === 'available' ? 'Start Order' : 'Edit Cart'}
                 </span>
-                
+
                 {(t.current_status === 'reserved' || t.current_status === 'occupied') && (
                   <button
                     onClick={(e) => handleRelease(t.id, e)}
