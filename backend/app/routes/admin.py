@@ -8,8 +8,8 @@ from typing import List, Optional, Dict, Any
 
 from app.db.session import get_db
 from app.db.models import User, Role, Customer, Coupon, Promotion, TableMaster, Floor, Order, OrderItem, Payment, AuditLog, VenueSetting
-from app.models.schemas import UserResponse, UserRegister, CouponCreate, CouponResponse, PromotionCreate, PromotionResponse, TableResponse, FloorResponse, FloorCreate, TableCreate
-from app.routes.auth import require_role
+from app.models.schemas import UserResponse, UserRegister, CouponCreate, CouponResponse, PromotionCreate, PromotionResponse, TableResponse, FloorResponse, FloorCreate, TableCreate, VenueSettingUpdate
+from app.routes.auth import require_role, is_valid_password, password_constraint_message
 from app.core.security import get_password_hash
 import uuid
 
@@ -66,9 +66,32 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     
     today_revenue = sum((o.total for o in today_orders if o.status == "paid"), Decimal("0.00"))
     paid_orders_count = sum(1 for o in today_orders if o.status == "paid")
+    today_customer_ids = {o.customer_id for o in today_orders if o.status == "paid" and o.customer_id}
     
     occupied_tables = db.query(TableMaster).filter(TableMaster.current_status == 'occupied').count()
     total_tables = db.query(TableMaster).count()
+
+    day_wise_statistics = []
+    for i in range(6, -1, -1):
+        day = date.today() - timedelta(days=i)
+        day_start = datetime.combine(day, datetime.min.time())
+        day_end = datetime.combine(day, datetime.max.time())
+        day_orders = db.query(Order).filter(Order.created_at >= day_start, Order.created_at <= day_end).all()
+        paid_day_orders = [o for o in day_orders if o.status == "paid"]
+        unique_customers = {o.customer_id for o in paid_day_orders if o.customer_id}
+        new_customers = db.query(Customer).filter(
+            Customer.created_at >= day_start,
+            Customer.created_at <= day_end
+        ).count()
+
+        day_wise_statistics.append({
+            "date": day.strftime("%Y-%m-%d"),
+            "label": day.strftime("%d %b"),
+            "orders": len(paid_day_orders),
+            "revenue": float(sum((o.total for o in paid_day_orders), Decimal("0.00"))),
+            "customers": len(unique_customers),
+            "new_customers": new_customers
+        })
     
     return {
         "total_staff": total_staff,
@@ -76,7 +99,11 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         "today_revenue": float(today_revenue),
         "paid_orders_count": paid_orders_count,
         "table_occupancy": f"{occupied_tables}/{total_tables}",
-        "occupied_tables_count": occupied_tables
+        "occupied_tables_count": occupied_tables,
+        "today_customers_count": len(today_customer_ids),
+        "available_tables_count": max(total_tables - occupied_tables, 0),
+        "total_tables_count": total_tables,
+        "day_wise_statistics": day_wise_statistics
     }
 
 # ── User & Staff Management ──────────────────────────────────────────────────
@@ -124,6 +151,9 @@ def create_staff(user_in: UserRegister, db: Session = Depends(get_db)):
     role = db.query(Role).filter(Role.id == user_in.role_id).first()
     if not role:
         raise HTTPException(status_code=400, detail="Invalid role ID")
+
+    if not is_valid_password(user_in.password):
+        raise HTTPException(status_code=400, detail=password_constraint_message())
         
     existing = db.query(User).filter(
         (User.email == user_in.email) | (User.mobile_number == user_in.mobile_number)
@@ -163,8 +193,8 @@ def update_user_role(user_id: int, role_id: int, db: Session = Depends(get_db)):
 def reset_user_password(user_id: int, password_in: Dict[str, str], db: Session = Depends(get_db)):
     # Wait, Dict[str, str] needs to be imported or we can use body parameters. Let's just read the dict directly
     new_password = password_in.get("password")
-    if not new_password or len(new_password) < 4:
-        raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
+    if not new_password or not is_valid_password(new_password):
+        raise HTTPException(status_code=400, detail=password_constraint_message())
         
     user = db.query(User).filter(User.id == user_id, User.deleted_at == None).first()
     if not user:
@@ -336,7 +366,7 @@ def monitor_tables(db: Session = Depends(get_db)):
             order = db.query(Order).filter(Order.id == t.current_order_id).first()
             if order:
                 items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
-                items_cooked = sum(1 for item in items if item.kitchen_status == "completed")
+                items_cooked = sum(1 for item in items if item.kitchen_status == "done")
                 total_items = len(items)
                 
                 active_order_data = {
@@ -375,7 +405,7 @@ def get_venue_settings(db: Session = Depends(get_db)):
             currency_symbol="₹",
             self_ordering_enabled=True,
             self_ordering_mode="online_ordering",
-            self_order_lock_mode="device",
+            self_order_lock_mode="pin",
             kds_auto_advance=False
         )
         db.add(settings_obj)
@@ -384,12 +414,31 @@ def get_venue_settings(db: Session = Depends(get_db)):
     return settings_obj
 
 @router.put("/settings", dependencies=[admin_dependency])
-def update_venue_settings(payload: Dict[str, Any], db: Session = Depends(get_db)):
+def update_venue_settings(payload: VenueSettingUpdate, db: Session = Depends(get_db)):
     settings_obj = db.query(VenueSetting).first()
     if not settings_obj:
         raise HTTPException(status_code=404, detail="Venue settings not found")
-        
-    for k, v in payload.items():
+
+    data = payload.model_dump(exclude_unset=True)
+
+    if "venue_name" in data and not data["venue_name"].strip():
+        raise HTTPException(status_code=400, detail="Venue name is required")
+    if "currency_symbol" in data and not data["currency_symbol"].strip():
+        raise HTTPException(status_code=400, detail="Currency symbol is required")
+    if "tax_label" in data and not data["tax_label"].strip():
+        raise HTTPException(status_code=400, detail="Tax label is required")
+    if "session_timeout_minutes" in data and data["session_timeout_minutes"] <= 0:
+        raise HTTPException(status_code=400, detail="Session timeout must be greater than 0 minutes")
+
+    allowed_self_order_modes = {"online_ordering", "qr_menu", "both", "kiosk", "qr_table"}
+    if "self_ordering_mode" in data and data["self_ordering_mode"] not in allowed_self_order_modes:
+        raise HTTPException(status_code=400, detail="Invalid self-ordering mode")
+
+    allowed_lock_modes = {"device", "pin", "none", "otp"}
+    if "self_order_lock_mode" in data and data["self_order_lock_mode"] not in allowed_lock_modes:
+        raise HTTPException(status_code=400, detail="Invalid self-order lock mode")
+
+    for k, v in data.items():
         if hasattr(settings_obj, k):
             setattr(settings_obj, k, v)
             
@@ -439,4 +488,3 @@ def create_table(table_in: TableCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_table)
     return new_table
-

@@ -133,7 +133,7 @@ async def create_cashier_order(order_in: OrderCreate, db: Session = Depends(get_
             unit_price=prod.price,
             line_discount=Decimal("0.00"),
             line_total=line_total,
-            kitchen_status="to_cook",
+            kitchen_status="pending",
             notes=item.notes
         )
         db.add(order_item)
@@ -192,7 +192,7 @@ async def update_cashier_order_items(order_id: int, items_in: List[OrderItemCrea
             unit_price=prod.price,
             line_discount=Decimal("0.00"),
             line_total=line_total,
-            kitchen_status="to_cook",
+            kitchen_status="pending",
             notes=item.notes
         )
         db.add(order_item)
@@ -243,7 +243,7 @@ async def pay_and_send(order_id: int, payment_payload: Dict[str, Any], db: Sessi
         amount_received=received,
         change_due=change if change > 0 else Decimal("0.00"),
         reference_code=payment_payload.get("reference_code"),
-        status="success",
+        status="completed",
         received_by=current_user.id
     )
     db.add(payment)

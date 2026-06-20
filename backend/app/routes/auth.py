@@ -47,6 +47,18 @@ def is_valid_phone(phone: str) -> bool:
     cleaned = re.sub(r"\D+", "", phone)
     return 10 <= len(cleaned) <= 15
 
+def is_valid_password(password: str) -> bool:
+    return (
+        len(password) >= 8
+        and bool(re.search(r"[A-Z]", password))
+        and bool(re.search(r"\d", password))
+        and bool(re.search(r"[^A-Za-z0-9\s]", password))
+    )
+
+
+def password_constraint_message() -> str:
+    return "Password must be at least 8 characters and contain one uppercase letter, one number, and one special character."
+
 @router.post("/login", response_model=Token)
 def login(login_in: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == login_in.email).first()
@@ -81,6 +93,12 @@ def signup(user_in: UserRegister, db: Session = Depends(get_db)):
     # Validate phone
     if not is_valid_phone(user_in.mobile_number):
         raise HTTPException(status_code=400, detail="Please enter a valid phone number (10-15 digits).")
+
+    if not is_valid_password(user_in.password):
+        raise HTTPException(
+            status_code=400,
+            detail=password_constraint_message(),
+        )
 
     # Check duplicates
     existing = db.query(User).filter(
@@ -139,5 +157,3 @@ def get_me(current_user: User = Depends(get_current_user), db: Session = Depends
         "role_name": role.name if role else "employee",
         "is_active": current_user.is_active
     }
-
-
