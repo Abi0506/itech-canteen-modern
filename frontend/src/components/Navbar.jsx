@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Menu, X, LayoutDashboard, Receipt, RefreshCw, BarChart2, Folder, Coffee, Users, Sliders, MapPin, Percent, Layers, Landmark } from 'lucide-react';
+import { LogOut, Menu, X, LayoutDashboard, RefreshCw, BarChart2, Folder, Coffee, Users, Sliders, MapPin, Percent, Layers, Landmark } from 'lucide-react';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -24,8 +24,6 @@ const Navbar = () => {
     if (user.role_name === 'cashier') {
       return [
         { to: '/cashier/tables', label: 'Tables Grid', icon: <Landmark size={18} /> },
-        { to: '/cashier/orders', label: 'Session Orders', icon: <Receipt size={18} /> },
-        { to: '/cashier/customers', label: 'Customers', icon: <Users size={18} /> },
       ];
     }
     if (user.role_name === 'inventory_manager') {

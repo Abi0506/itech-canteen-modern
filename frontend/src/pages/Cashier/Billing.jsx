@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../utils/api';
 import { Search, Plus, Minus, Table2, Send, CreditCard, CheckCircle, Clock3, MapPinned, TicketPercent } from 'lucide-react';
+import { groupOrderItems } from '../../utils/orderItems';
 
 const Billing = () => {
   const [floors, setFloors] = useState([]);
@@ -85,10 +86,14 @@ const Billing = () => {
     });
   }, [flatItems, activeCategoryId, search]);
 
-  const currentItems = activeOrder?.items ? Object.values(activeOrder.items) : [];
+  const currentItems = useMemo(() => {
+    const items = activeOrder?.items ? Object.values(activeOrder.items) : [];
+    return groupOrderItems(items);
+  }, [activeOrder]);
 
   const subtotal = currentItems.reduce((sum, item) => {
-    return sum + (Number(item.rate || 0) * Number(item.quantity || 0));
+    const price = Number(item.unit_price || item.rate || item.price || 0);
+    return sum + (price * Number(item.quantity || 0));
   }, 0);
 
   const loadBillSummary = async (orderId = activeOrder?.id, coupon = couponCode, points = redeemPoints) => {
@@ -233,10 +238,11 @@ const Billing = () => {
                 key={floor.id}
                 type="button"
                 onClick={() => setActiveFloorId(floor.id)}
-                className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold transition-colors ${activeFloorId === floor.id
+                className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold transition-colors ${
+                  activeFloorId === floor.id
                     ? 'bg-primary text-on-primary'
                     : 'bg-surface-container-high text-secondary hover:text-primary'
-                  }`}
+                }`}
               >
                 {floor.name}
               </button>
@@ -250,14 +256,15 @@ const Billing = () => {
                 type="button"
                 onClick={() => openTable(table)}
                 disabled={busy}
-                className={`rounded-2xl border p-4 text-left transition-all ${activeTable?.id === table.id
+                className={`rounded-2xl border p-4 text-left transition-all ${
+                  activeTable?.id === table.id
                     ? 'border-primary bg-primary/5'
                     : table.status === 'occupied'
                       ? 'border-amber-400/40 bg-amber-500/10'
                       : table.status === 'reserved'
                         ? 'border-blue-400/40 bg-blue-500/10'
                         : 'border-outline/10 bg-surface-container-lowest hover:border-primary/30'
-                  }`}
+                }`}
               >
                 <div className="flex items-center justify-between">
                   <p className="font-headline text-lg font-bold text-on-surface">T{table.table_number}</p>
@@ -298,10 +305,11 @@ const Billing = () => {
                 key={category.id}
                 type="button"
                 onClick={() => setActiveCategoryId(category.id)}
-                className={`whitespace-nowrap rounded-full border px-4 py-2 text-xs font-bold transition-colors ${activeCategoryId === category.id
+                className={`whitespace-nowrap rounded-full border px-4 py-2 text-xs font-bold transition-colors ${
+                  activeCategoryId === category.id
                     ? 'text-white'
                     : 'bg-surface-container-high text-secondary hover:text-primary'
-                  }`}
+                }`}
                 style={activeCategoryId === category.id ? { backgroundColor: category.color } : {}}
               >
                 {category.name}
@@ -369,7 +377,7 @@ const Billing = () => {
                   <div>
                     <p className="font-semibold text-on-surface">{item.name}</p>
                     <p className="text-[10px] text-outline">
-                      {item.quantity} x ₹{Number(item.rate).toFixed(2)}
+                      {item.quantity} x ₹{Number(item.unit_price || item.rate || item.price || 0).toFixed(2)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">

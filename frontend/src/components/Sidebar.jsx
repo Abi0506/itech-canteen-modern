@@ -1,13 +1,13 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Receipt, RefreshCw, BarChart2, Folder, Coffee, Users, Sliders, MapPin, Percent, Layers, Landmark } from 'lucide-react';
+import { LayoutDashboard, RefreshCw, BarChart2, Folder, Coffee, Users, Sliders, MapPin, Percent, Layers } from 'lucide-react';
 
 const Sidebar = () => {
   const { user } = useAuth();
   const location = useLocation();
 
-  if (!user || user.role_name === 'chef') return null;
+  if (!user || user.role_name === 'chef' || user.role_name === 'cashier') return null;
 
   const isActive = (path) => location.pathname === path;
 
@@ -15,40 +15,6 @@ const Sidebar = () => {
     <aside className="w-64 bg-surface border-r border-outline/10 h-[calc(100vh-57px)] sticky top-[57px] hidden md:block py-6 px-4">
       <div className="space-y-6">
         
-        {/* Cashier Sidebar Layout */}
-        {user.role_name === 'cashier' && (
-          <div className="space-y-1">
-            <p className="text-[10px] font-bold text-outline uppercase tracking-wider px-3 mb-2">Cashier desk</p>
-            <Link
-              to="/cashier/tables"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                isActive('/cashier/tables') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
-              }`}
-            >
-              <Landmark size={18} />
-              Tables Grid
-            </Link>
-            <Link
-              to="/cashier/orders"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                isActive('/cashier/orders') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
-              }`}
-            >
-              <Receipt size={18} />
-              Session Orders
-            </Link>
-            <Link
-              to="/cashier/customers"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                isActive('/cashier/customers') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
-              }`}
-            >
-              <Users size={18} />
-              Customers
-            </Link>
-          </div>
-        )}
-
         {/* Inventory Manager Sidebar Layout */}
         {user.role_name === 'inventory_manager' && (
           <div className="space-y-1">

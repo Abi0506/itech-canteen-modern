@@ -29,6 +29,16 @@ ALTER TABLE order_items
 ALTER TABLE order_items
     ADD CONSTRAINT fk_oi_chef FOREIGN KEY (claimed_by) REFERENCES users(id) ON DELETE SET NULL;
 
+ALTER TABLE order_items
+    MODIFY COLUMN kitchen_status ENUM('pending','claimed','done','to_cook','preparing','completed') NOT NULL DEFAULT 'to_cook';
+
+UPDATE order_items SET kitchen_status='to_cook' WHERE kitchen_status='pending';
+UPDATE order_items SET kitchen_status='preparing' WHERE kitchen_status='claimed';
+UPDATE order_items SET kitchen_status='completed' WHERE kitchen_status='done';
+
+ALTER TABLE order_items
+    MODIFY COLUMN kitchen_status ENUM('to_cook','preparing','completed') NOT NULL DEFAULT 'to_cook';
+
 -- Loyalty credits table
 CREATE TABLE IF NOT EXISTS loyalty_credits (
     id              INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,

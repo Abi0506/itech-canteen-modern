@@ -11,10 +11,11 @@ from app.routes.auth import require_role
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
 inventory_dependency = Depends(require_role(["superadmin", "inventory_manager"]))
+catalog_dependency = Depends(require_role(["superadmin", "inventory_manager", "cashier"]))
 
-@router.get("/products", response_model=List[ProductResponse], dependencies=[inventory_dependency])
+@router.get("/products", response_model=List[ProductResponse], dependencies=[catalog_dependency])
 def list_products(db: Session = Depends(get_db)):
-    return db.query(Product).all()
+    return db.query(Product).filter(Product.is_active == True).order_by(Product.name).all()
 
 @router.post("/products", response_model=ProductResponse, dependencies=[inventory_dependency])
 def create_product(product_in: ProductCreate, db: Session = Depends(get_db)):
@@ -87,9 +88,9 @@ def delete_product(prod_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"success": True, "message": "Product deactivated successfully"}
 
-@router.get("/categories", response_model=List[CategoryResponse], dependencies=[inventory_dependency])
+@router.get("/categories", response_model=List[CategoryResponse], dependencies=[catalog_dependency])
 def list_categories(db: Session = Depends(get_db)):
-    return db.query(Category).all()
+    return db.query(Category).filter(Category.is_active == True).order_by(Category.display_order, Category.name).all()
 
 @router.post("/categories", response_model=CategoryResponse, dependencies=[inventory_dependency])
 def create_category(cat_in: CategoryCreate, db: Session = Depends(get_db)):

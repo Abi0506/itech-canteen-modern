@@ -209,7 +209,7 @@ class OrderItem(Base):
     unit_price = Column(Numeric(10, 2), nullable=False)
     line_discount = Column(Numeric(10, 2), nullable=False, default=0.00)
     line_total = Column(Numeric(10, 2), nullable=False)
-    kitchen_status = Column(Enum('pending', 'claimed', 'done'), nullable=False, default='pending')
+    kitchen_status = Column(Enum('to_cook', 'preparing', 'completed'), nullable=False, default='to_cook')
     notes = Column(VARCHAR(255), nullable=True)
     claimed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     claimed_at = Column(TIMESTAMP, nullable=True)

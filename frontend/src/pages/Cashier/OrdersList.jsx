@@ -34,8 +34,8 @@ const OrdersList = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-6 font-body">
       <div>
-        <h1 className="font-headline font-bold text-2xl text-on-surface">Active Session Orders</h1>
-        <p className="text-secondary text-sm">List of transactions created or completed in the current cashier POS session.</p>
+        <h1 className="font-headline font-bold text-2xl text-on-surface">Active Bills</h1>
+        <p className="text-secondary text-sm">Bills created from the cashier table flow.</p>
       </div>
 
       <div className="overflow-x-auto bg-surface-container-low border border-outline/10 rounded-2xl">
@@ -83,7 +83,7 @@ const OrdersList = () => {
             ))}
             {orders.length === 0 && (
               <tr>
-                <td colSpan="6" className="p-8 text-center text-outline italic text-xs">No active session orders found.</td>
+                <td colSpan="6" className="p-8 text-center text-outline italic text-xs">No active bills found.</td>
               </tr>
             )}
           </tbody>
