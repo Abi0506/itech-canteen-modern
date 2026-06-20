@@ -67,15 +67,6 @@ const TableMonitor = () => {
                   </span>
                 </div>
 
-                {/* Serving Waiter */}
-                {t.waiter_name ? (
-                  <div className="flex items-center gap-2 text-xs text-secondary bg-surface-container px-3 py-1.5 rounded-lg border border-outline/5">
-                    <User size={14} className="text-primary" />
-                    <span>Server: <strong className="text-on-surface">{t.waiter_name}</strong></span>
-                  </div>
-                ) : (
-                  <div className="text-[10px] text-outline italic">No waiter assigned currently</div>
-                )}
 
                 {/* Active Order Details */}
                 {t.active_order ? (

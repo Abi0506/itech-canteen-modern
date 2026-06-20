@@ -12,7 +12,7 @@ const Dashboard = () => {
       try {
         const [sRes, pRes] = await Promise.all([
           api.get('/inventory/stock'),
-          api.get('/inventory/products')
+          api.get('/inventory/products', { params: { include_inactive: true } }),
         ]);
         setStock(sRes.data);
         setProducts(pRes.data);
@@ -77,33 +77,64 @@ const Dashboard = () => {
       </div>
 
       {/* Low Stock Warnings */}
-      <div className="bg-surface-container-low border border-outline/10 p-6 rounded-2xl space-y-4">
+      <div className={`border p-6 rounded-2xl space-y-4 ${
+        lowStockItems.length > 0
+          ? 'bg-red-50/60 border-red-200'
+          : 'bg-surface-container-low border-outline/10'
+      }`}>
         <div className="flex justify-between items-center border-b border-outline/5 pb-2">
           <h3 className="font-headline font-bold text-sm text-on-surface flex items-center gap-2">
-            <AlertTriangle size={18} className="text-error" />
+            <AlertTriangle size={18} className={lowStockItems.length > 0 ? 'text-error' : 'text-outline'} />
             Low Stock Reorder Alerts
           </h3>
-          <span className="text-[10px] bg-error-container text-error font-bold px-2 py-0.5 rounded-full uppercase">Action Required</span>
+          {lowStockItems.length > 0 ? (
+            <span className="text-[10px] bg-error-container text-error font-bold px-2 py-0.5 rounded-full uppercase animate-pulse">
+              {lowStockItems.length} Need Restocking
+            </span>
+          ) : (
+            <span className="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded-full uppercase">
+              All Healthy
+            </span>
+          )}
         </div>
 
         <div className="space-y-3">
           {lowStockItems.map((item) => {
             const prod = products.find((p) => p.id === item.product_id);
+            const current = Number(item.current_stock);
+            const reorder = Number(item.reorder_level);
+            const max = reorder * 2 || 20;
+            const pct = Math.min(100, (current / max) * 100);
+            const isOut = current <= 0;
             return (
-              <div key={item.id} className="flex justify-between items-center text-sm border-b border-outline/5 pb-2 last:border-0 last:pb-0">
-                <div>
-                  <span className="font-semibold text-on-surface">{prod ? prod.name : 'Unknown Product'}</span>
-                  <p className="text-[10px] text-outline">SKU: {item.sku}</p>
+              <div key={item.id} className="bg-white/70 rounded-xl p-3 space-y-2 border border-red-100">
+                <div className="flex justify-between items-center text-sm">
+                  <div>
+                    <span className="font-bold text-on-surface">{prod ? prod.name : `Product #${item.product_id}`}</span>
+                    <p className="text-[10px] text-outline">SKU: {item.sku}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`font-black text-base ${ isOut ? 'text-red-600' : 'text-amber-600'}`}>
+                      {current}
+                    </span>
+                    <span className="text-secondary text-[10px] block">reorder at {reorder} {item.unit}</span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="font-bold text-error">{Number(item.current_stock)}</span>
-                  <span className="text-secondary text-xs"> / {item.unit} (Limit: {Number(item.reorder_level)})</span>
+                {/* Stock progress bar */}
+                <div className="h-1.5 w-full bg-red-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${ isOut ? 'bg-red-500' : 'bg-amber-400'}`}
+                    style={{ width: `${pct}%` }}
+                  />
                 </div>
               </div>
             );
           })}
           {lowStockItems.length === 0 && (
-            <p className="text-xs text-outline italic">All product stocks are at healthy quantities.</p>
+            <p className="text-xs text-emerald-700 font-semibold flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+              All product stocks are above their reorder levels.
+            </p>
           )}
         </div>
       </div>

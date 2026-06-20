@@ -26,7 +26,7 @@ def _active_kds_items(db: Session, order_id: int) -> list[OrderItem]:
         .filter(
             OrderItem.order_id == order_id,
             Product.kds_visible == True,
-            OrderItem.kitchen_status.in_(["pending", "claimed"]),
+            OrderItem.kitchen_status.in_(["to_cook", "preparing"]),
         )
         .order_by(OrderItem.id.asc())
         .all()
@@ -117,10 +117,10 @@ async def claim_kds_item(
     item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Order item not found")
-    if item.kitchen_status != "pending":
+    if item.kitchen_status != "to_cook":
         raise HTTPException(status_code=400, detail="Item is already claimed or completed")
 
-    item.kitchen_status = "claimed"
+    item.kitchen_status = "preparing"
     item.claimed_by = current_user.id
     item.claimed_at = datetime.utcnow()
     db.commit()
@@ -133,7 +133,7 @@ async def claim_kds_item(
             "claimed_by_name": current_user.name,
         }
     )
-    return {"success": True, "status": "claimed"}
+    return {"success": True, "status": "preparing"}
 
 
 @router.post("/items/{item_id}/complete")
@@ -145,15 +145,15 @@ async def complete_kds_item(
     item = db.query(OrderItem).filter(OrderItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Order item not found")
-    if item.kitchen_status == "done":
+    if item.kitchen_status == "completed":
         raise HTTPException(status_code=400, detail="Item is already completed")
 
-    item.kitchen_status = "done"
+    item.kitchen_status = "completed"
     item.completed_at = datetime.utcnow()
     db.commit()
 
     await manager.broadcast_all({"event": "item_completed", "item_id": item_id, "order_id": item.order_id})
-    return {"success": True, "status": "done"}
+    return {"success": True, "status": "completed"}
 
 
 @router.post("/orders/{order_id}/items/{item_id}/start")

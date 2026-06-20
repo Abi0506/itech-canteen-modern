@@ -25,6 +25,12 @@ class UserRegister(BaseModel):
     password: str
     role_id: int
 
+class UserUpdate(BaseModel):
+    name: str
+    email: EmailStr
+    mobile_number: str
+    role_id: int
+
 class UserResponse(BaseModel):
     id: int
     name: str

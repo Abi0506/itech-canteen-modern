@@ -1,15 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
-from datetime import timedelta
+from datetime import timedelta, datetime
 import re
+import secrets
 
 from app.db.session import get_db
-from app.db.models import User, Role, Customer
+from app.db.models import User, Role, Customer, PasswordResetToken
 from app.models.schemas import UserLogin, UserRegister, Token, UserResponse, CustomerSignup, CustomerResponse
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.core.config import settings
+from app.services.email import send_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -160,3 +162,97 @@ def get_me(current_user: User = Depends(get_current_user), db: Session = Depends
         "role_name": role.name if role else "employee",
         "is_active": current_user.is_active
     }
+
+
+# ─── Forgot / Reset Password ───────────────────────────────────────────────────
+
+TOKEN_EXPIRY_MINUTES = 60  # 1 hour
+
+
+@router.post("/forgot-password")
+def forgot_password(payload: dict, request: Request, db: Session = Depends(get_db)):
+    """
+    Accepts {"email": "..."}. Looks up the staff user, creates a single-use
+    token valid for 1 hour and emails a reset link. Always returns a generic
+    200 response so email enumeration is not possible.
+    """
+    email = (payload.get("email") or "").strip().lower()
+    user = db.query(User).filter(User.email == email, User.deleted_at.is_(None)).first()
+
+    if user and user.is_active:
+        # Invalidate any existing unused tokens for this user
+        db.query(PasswordResetToken).filter(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at.is_(None),
+        ).delete(synchronize_session=False)
+
+        token_value = secrets.token_hex(64)
+        expires = datetime.utcnow() + timedelta(minutes=TOKEN_EXPIRY_MINUTES)
+        token = PasswordResetToken(
+            user_id=user.id,
+            token=token_value,
+            expires_at=expires,
+        )
+        db.add(token)
+        db.commit()
+
+        # Build the reset link pointing to the frontend
+        origin = str(request.base_url).rstrip("/")
+        # Replace backend port with frontend port when in dev
+        frontend_origin = origin.replace(":8000", ":5173").replace(":8001", ":5173")
+        reset_link = f"{frontend_origin}/reset-password?token={token_value}"
+
+        try:
+            send_password_reset_email(
+                to_email=user.email,
+                user_name=user.name,
+                reset_link=reset_link,
+            )
+        except Exception:
+            # Do not surface email failures to the client
+            pass
+
+    return {
+        "success": True,
+        "message": "If an account with that email exists, a reset link has been sent."
+    }
+
+
+@router.post("/reset-password")
+def reset_password(payload: dict, db: Session = Depends(get_db)):
+    """
+    Accepts {"token": "...", "password": "..."}.
+    Validates the token (not expired, not used), then updates the password.
+    """
+    token_value = (payload.get("token") or "").strip()
+    new_password = payload.get("password") or ""
+
+    if not token_value:
+        raise HTTPException(status_code=400, detail="Reset token is required.")
+
+    if not is_valid_password(new_password):
+        raise HTTPException(status_code=400, detail=password_constraint_message())
+
+    token = db.query(PasswordResetToken).filter(
+        PasswordResetToken.token == token_value
+    ).first()
+
+    if not token:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link.")
+
+    if token.used_at is not None:
+        raise HTTPException(status_code=400, detail="This reset link has already been used.")
+
+    if datetime.utcnow() > token.expires_at:
+        raise HTTPException(status_code=400, detail="This reset link has expired. Please request a new one.")
+
+    user = db.query(User).filter(User.id == token.user_id).first()
+    if not user or not user.is_active or user.deleted_at is not None:
+        raise HTTPException(status_code=400, detail="User account not found or inactive.")
+
+    # Mark token as used immediately (single-use)
+    token.used_at = datetime.utcnow()
+    user.password_hash = get_password_hash(new_password)
+    db.commit()
+
+    return {"success": True, "message": "Password has been reset. You can now log in."}

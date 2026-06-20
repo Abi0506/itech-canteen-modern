@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Any
 
 from app.db.session import get_db
 from app.db.models import User, Role, Customer, Coupon, Promotion, TableMaster, Floor, Order, OrderItem, Payment, AuditLog, VenueSetting
-from app.models.schemas import UserResponse, UserRegister, CouponCreate, CouponResponse, PromotionCreate, PromotionResponse, TableResponse, FloorResponse, FloorCreate, TableCreate, VenueSettingUpdate
+from app.models.schemas import UserResponse, UserRegister, UserUpdate, CouponCreate, CouponResponse, PromotionCreate, PromotionResponse, TableResponse, FloorResponse, FloorCreate, TableCreate, VenueSettingUpdate
 from app.routes.auth import require_role, is_valid_password, password_constraint_message
 from app.core.security import get_password_hash
 import uuid
@@ -174,6 +174,31 @@ def create_staff(user_in: UserRegister, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     return new_user
+
+@router.put("/users/{user_id}", response_model=UserResponse, dependencies=[admin_dependency])
+def update_staff(user_id: int, user_in: UserUpdate, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id, User.deleted_at == None).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    role = db.query(Role).filter(Role.id == user_in.role_id).first()
+    if not role:
+        raise HTTPException(status_code=400, detail="Invalid role ID")
+        
+    existing = db.query(User).filter(
+        (User.email == user_in.email) | (User.mobile_number == user_in.mobile_number),
+        User.id != user_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Another user with this email or mobile number already exists")
+        
+    user.name = user_in.name
+    user.email = user_in.email
+    user.mobile_number = user_in.mobile_number
+    user.role_id = user_in.role_id
+    db.commit()
+    db.refresh(user)
+    return user
 
 @router.put("/users/{user_id}/role", dependencies=[admin_dependency])
 def update_user_role(user_id: int, role_id: int, db: Session = Depends(get_db)):

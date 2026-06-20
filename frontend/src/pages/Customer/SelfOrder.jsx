@@ -19,6 +19,9 @@ import api from '../../utils/api';
 
 const formatMoney = (value) => `Rs.${Number(value || 0).toFixed(2)}`;
 
+const isCompletedStatus = (status) => status === 'done' || status === 'completed';
+const isPreparingStatus = (status) => status === 'claimed' || status === 'preparing';
+
 const SelfOrder = () => {
   const { tableId } = useParams();
   const [table, setTable] = useState(null);
@@ -28,7 +31,8 @@ const SelfOrder = () => {
   const [order, setOrder] = useState(null);
   const [screen, setScreen] = useState('browse');
   const [showAuth, setShowAuth] = useState(false);
-  const [showCategories, setShowCategories] = useState(false);
+  const [authStep, setAuthStep] = useState('phone');
+  const [customerTab, setCustomerTab] = useState('items');
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState({});
   const [confirmedQuantities, setConfirmedQuantities] = useState({});
@@ -44,9 +48,21 @@ const SelfOrder = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const orderItems = useMemo(() => Object.values(order?.items || {}), [order]);
-  const completedItems = orderItems.filter((item) => item.status === 'done').length;
+  const completedItems = orderItems.filter((item) => isCompletedStatus(item.status)).length;
   const isReadyForPayment = orderItems.length > 0 && completedItems === orderItems.length;
   const canProceedToPayment = allItemsDone || isReadyForPayment;
+
+  useEffect(() => {
+    if (!message) return undefined;
+    const timer = setTimeout(() => setMessage(''), 5000);
+    return () => clearTimeout(timer);
+  }, [message]);
+
+  useEffect(() => {
+    if (!error) return undefined;
+    const timer = setTimeout(() => setError(''), 5000);
+    return () => clearTimeout(timer);
+  }, [error]);
 
   const loadPublicMenu = async () => {
     setError('');
@@ -124,17 +140,21 @@ const SelfOrder = () => {
   const total = subtotal + tax;
   const totalUnits = cartItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const hasConfirmedItems = Object.values(confirmedQuantities).some((quantity) => quantity > 0);
+  const placedOrderItems = orderItems;
+  const customerTabs = [
+    { id: 'items', label: 'Items' },
+    { id: 'cart', label: 'Cart' },
+    { id: 'orders', label: 'Orders' },
+  ];
 
   const hydrateOrder = (nextOrder) => {
-    const nextCart = {};
     const nextConfirmed = {};
     Object.values(nextOrder?.items || {}).forEach((item) => {
       const key = String(item.product_id);
-      nextCart[key] = (nextCart[key] || 0) + Number(item.quantity || 0);
       nextConfirmed[key] =
         (nextConfirmed[key] || 0) + Number(item.confirmed_quantity || 0);
     });
-    setCart(nextCart);
+    setCart({});
     setConfirmedQuantities(nextConfirmed);
   };
 
@@ -148,7 +168,7 @@ const SelfOrder = () => {
       const response = await api.get(`/self-order/orders/${order.id}`);
       const nextOrder = response.data.order || null;
       const nextOrderItems = Object.values(nextOrder?.items || {});
-      const nextDone = nextOrderItems.length > 0 && nextOrderItems.every((item) => item.status === 'done');
+      const nextDone = nextOrderItems.length > 0 && nextOrderItems.every((item) => isCompletedStatus(item.status));
       if (nextOrder) {
         setOrder(nextOrder);
         hydrateOrder(nextOrder);
@@ -235,21 +255,60 @@ const SelfOrder = () => {
       sessionStorage.setItem(`self-order-pin-${tableId}`, pin);
     }
     setShowAuth(false);
+    setAuthStep('phone');
+    setCustomerTab('items');
     setScreen('order');
     setSessionActive(true);
   };
 
-  const startSession = async (event) => {
-    event.preventDefault();
+  const startSessionWithPayload = async (payload) => {
     setBusy(true);
     setError('');
     try {
-      const response = await api.post(`/self-order/tables/${tableId}/start`, signup);
+      const response = await api.post(`/self-order/tables/${tableId}/start`, payload);
       beginOrdering(response.data);
       setMessage('Your table order is ready. Choose your items, then review and confirm.');
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not start the table order.');
       await loadPublicMenu();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startSession = async (event) => {
+    event.preventDefault();
+    await startSessionWithPayload(signup);
+  };
+
+  const lookupCustomerAndContinue = async (event) => {
+    event.preventDefault();
+    if (!signup.phone_no.trim()) {
+      setError('Phone number is required.');
+      return;
+    }
+
+    setBusy(true);
+    setError('');
+    try {
+      const response = await api.get('/self-order/customers/resolve', {
+        params: { phone_number: signup.phone_no },
+      });
+
+      if (response.data?.exists) {
+        const customer = response.data.customer || {};
+        await startSessionWithPayload({
+          phone_no: signup.phone_no,
+          name: customer.name || signup.name || '',
+          email: customer.email || signup.email || '',
+        });
+        return;
+      }
+
+      setAuthStep('details');
+      setMessage('No account found for this phone number. Please enter your name and email to continue.');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Could not verify the phone number.');
     } finally {
       setBusy(false);
     }
@@ -291,20 +350,40 @@ const SelfOrder = () => {
     setBusy(true);
     setError('');
     try {
+      const desiredItems = new Map();
+
+      Object.values(order?.items || {}).forEach((item) => {
+        const productId = Number(item.product_id);
+        const quantity = Number(item.quantity || 0);
+        if (productId && quantity > 0) {
+          desiredItems.set(productId, (desiredItems.get(productId) || 0) + quantity);
+        }
+      });
+
+      cartItems.forEach((item) => {
+        const productId = Number(item.id);
+        const quantity = Number(item.quantity || 0);
+        if (productId && quantity > 0) {
+          desiredItems.set(productId, (desiredItems.get(productId) || 0) + quantity);
+        }
+      });
+
       const response = await api.post(`/self-order/orders/${order.id}/confirm`, {
-        items: cartItems.map((item) => ({
-          product_id: item.id,
-          quantity: item.quantity,
+        items: Array.from(desiredItems.entries()).map(([product_id, quantity]) => ({
+          product_id,
+          quantity,
         })),
       });
       setOrder(response.data);
       hydrateOrder(response.data);
+      setCart({});
       setAllItemsDone(false);
-      setScreen('awaiting_payment');
+      setCustomerTab('orders');
+      setScreen('order');
       setMessage(
         hasConfirmedItems
-          ? 'Your add-on items were confirmed and sent to the kitchen.'
-          : 'Your order was confirmed and sent to the kitchen.',
+          ? 'Your add-on items were placed. You can continue browsing the menu.'
+          : 'Your order was placed. You can continue browsing the menu.',
       );
       await loadPublicMenu();
     } catch (err) {
@@ -340,17 +419,11 @@ const SelfOrder = () => {
     }
   };
 
-  const scrollToCategory = (categoryId) => {
-    document.getElementById(`category-${categoryId}`)?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    });
-    setShowCategories(false);
-  };
-
   const openOrderGate = () => {
     setError('');
     setMessage('');
+    setAuthStep('phone');
+    setCustomerTab('items');
     setShowAuth(true);
   };
 
@@ -362,49 +435,19 @@ const SelfOrder = () => {
     );
   }
 
-  const categoryNavigation = (
-    <nav className="space-y-2">
-      <p className="mb-3 text-[10px] font-black uppercase tracking-[0.28em] text-outline">
-        Categories
-      </p>
-      {menu.map((category) => (
-        <button
-          key={category.id}
-          type="button"
-          onClick={() => scrollToCategory(category.id)}
-          className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-bold transition-colors hover:bg-surface-container-high"
-        >
-          <span
-            className="h-3 w-3 shrink-0 rounded-full"
-            style={{ backgroundColor: category.color || '#f59e0b' }}
-          />
-          {category.name}
-        </button>
-      ))}
-    </nav>
-  );
-
   return (
     <div className="min-h-screen bg-surface text-on-surface">
       <header className="sticky top-0 z-30 border-b border-outline/10 bg-surface/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 md:px-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-5">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
               Customer Menu
             </p>
-            <h1 className="font-headline text-xl font-black md:text-2xl">
+            <h1 className="font-headline text-lg font-black md:text-xl">
               Table {table?.table_number || tableId}
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowCategories(true)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-outline/10 bg-surface-container-low lg:hidden"
-              aria-label="Open categories"
-            >
-              <MenuIcon size={19} />
-            </button>
             {screen === 'browse' && (
               <button
                 type="button"
@@ -425,31 +468,7 @@ const SelfOrder = () => {
         </div>
       </header>
 
-      {showCategories && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setShowCategories(false)}
-            aria-label="Close categories"
-          />
-          <aside className="absolute bottom-0 left-0 top-0 w-72 overflow-y-auto bg-surface p-5 shadow-2xl">
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="font-headline text-xl font-black">Browse menu</h2>
-              <button
-                type="button"
-                onClick={() => setShowCategories(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-container-high"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            {categoryNavigation}
-          </aside>
-        </div>
-      )}
-
-      <div className="mx-auto max-w-7xl px-4 py-6 md:px-6">
+      <div className="mx-auto max-w-6xl px-4 py-4 md:px-5">
         {message && (
           <div className="mb-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-700">
             {message}
@@ -462,25 +481,19 @@ const SelfOrder = () => {
           </div>
         )}
 
-        {screen !== 'review' && screen !== 'awaiting_payment' && screen !== 'payment' && screen !== 'confirmed' && (
-          <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <aside className="hidden lg:block">
-              <div className="sticky top-28 rounded-3xl border border-outline/10 bg-surface-container-low p-4">
-                {categoryNavigation}
-              </div>
-            </aside>
-
+        {screen !== 'review' && screen !== 'awaiting_payment' && screen !== 'payment' && screen !== 'confirmed' && !showAuth && (
+          <div className="space-y-5">
             <main>
-              <div className="mb-6 rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-6">
-                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div className="mb-5 rounded-3xl border border-outline/10 bg-surface-container-low p-4 md:p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-primary">
                       {screen === 'browse' ? 'Browse freely — no login required' : 'Build your order'}
                     </p>
-                    <h2 className="mt-1 font-headline text-3xl font-black">
+                    <h2 className="mt-1 font-headline text-2xl font-black md:text-[2rem]">
                       {screen === 'browse' ? 'What are you craving?' : 'Choose your items'}
                     </h2>
-                    <p className="mt-2 max-w-2xl text-sm text-secondary">
+                    <p className="mt-2 max-w-2xl text-xs text-secondary md:text-sm">
                       {screen === 'browse'
                         ? 'The complete menu is below, grouped by category. You only enter your details when you decide to order.'
                         : hasConfirmedItems
@@ -488,22 +501,197 @@ const SelfOrder = () => {
                           : 'Change quantities as much as you like. Nothing is deducted until you confirm the order.'}
                     </p>
                   </div>
-                  <div className="relative w-full md:max-w-sm">
+                  <div className="relative w-full md:max-w-xs">
                     <Search
                       className="absolute left-3 top-1/2 -translate-y-1/2 text-outline"
-                      size={17}
+                      size={16}
                     />
                     <input
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
                       placeholder="Search the menu"
-                      className="w-full rounded-2xl border border-outline/10 bg-surface-container-lowest py-3 pl-10 pr-4 text-sm outline-none focus:border-primary/40"
+                      className="w-full rounded-2xl border border-outline/10 bg-surface-container-lowest py-2.5 pl-10 pr-4 text-sm outline-none focus:border-primary/40"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-8 pb-28">
+              <div className="mb-5 flex flex-wrap gap-2 rounded-3xl border border-outline/10 bg-surface-container-low p-2.5">
+                {customerTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setCustomerTab(tab.id)}
+                    className={`rounded-2xl px-3.5 py-2 text-xs font-black transition-colors md:text-sm ${
+                      customerTab === tab.id
+                        ? 'bg-primary text-on-primary'
+                        : 'bg-surface-container-lowest text-secondary hover:text-primary'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {customerTab === 'orders' && (
+                <div className="mb-5 rounded-3xl border border-outline/10 bg-surface-container-low p-4 md:p-5">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
+                        Orders
+                      </p>
+                      <h3 className="mt-1 font-headline text-xl font-black">Placed items</h3>
+                    </div>
+                    <span className="rounded-full bg-surface-container-high px-2.5 py-1 text-[11px] font-bold text-secondary">
+                      {placedOrderItems.length} items
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {placedOrderItems.length === 0 ? (
+                      <div className="rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-3 text-sm text-secondary">
+                        No placed items yet. Switch to Items or Cart to add something first.
+                      </div>
+                    ) : (
+                      placedOrderItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between gap-4 rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-3"
+                        >
+                          <div>
+                            <p className="font-semibold text-on-surface">{item.name}</p>
+                            <p className="text-xs text-secondary">
+                              {item.quantity} x {formatMoney(item.rate)}
+                            </p>
+                          </div>
+                          <span
+                            className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
+                              isCompletedStatus(item.status)
+                                ? 'bg-emerald-500/10 text-emerald-700'
+                                : isPreparingStatus(item.status)
+                                  ? 'bg-amber-500/10 text-amber-700'
+                                  : 'bg-outline/10 text-secondary'
+                            }`}
+                          >
+                            {item.status || 'to_cook'}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="mt-4 rounded-2xl border border-primary/10 bg-primary/5 px-4 py-2.5 text-sm text-secondary">
+                    Payment stays locked until every placed item is prepared.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (canProceedToPayment) {
+                        setScreen('payment');
+                        return;
+                      }
+                      setScreen('awaiting_payment');
+                    }}
+                    disabled={!placedOrderItems.length}
+                    className={`mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 font-black transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      canProceedToPayment
+                        ? 'bg-primary text-on-primary'
+                        : 'border border-outline/10 bg-surface-container-lowest text-secondary'
+                    }`}
+                  >
+                    <CreditCard size={18} />
+                    {canProceedToPayment ? 'Proceed to payment' : 'Payment locked until items are done'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomerTab('items')}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-3 font-black text-secondary"
+                  >
+                    Back to menu
+                  </button>
+                </div>
+              )}
+
+              {customerTab === 'cart' && (
+                <div className="mb-5 rounded-3xl border border-outline/10 bg-surface-container-low p-4 md:p-5">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
+                        Cart
+                      </p>
+                      <h3 className="mt-1 font-headline text-xl font-black">Current cart</h3>
+                    </div>
+                    <span className="rounded-full bg-surface-container-high px-2.5 py-1 text-[11px] font-bold text-secondary">
+                      {cartItems.length} items
+                    </span>
+                  </div>
+
+                  {cartItems.length === 0 ? (
+                    <div className="rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-3 text-sm text-secondary">
+                      Your cart is empty. Switch to Items and add something to order.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {cartItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between gap-3 rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-3"
+                        >
+                          <div>
+                            <p className="font-semibold text-on-surface">{item.name}</p>
+                            <p className="text-xs text-secondary">
+                              {item.quantity} x {formatMoney(item.price)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => changeQuantity(item.id, -1)}
+                              className="rounded-full bg-surface-container-high px-2.5 py-2 text-sm font-bold text-secondary"
+                            >
+                              -
+                            </button>
+                            <span className="min-w-6 text-center font-black">{item.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => changeQuantity(item.id, 1)}
+                              className="rounded-full bg-primary px-2.5 py-2 text-sm font-bold text-on-primary"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-4 rounded-2xl bg-surface-container-high p-4 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-secondary">Subtotal</span>
+                      <span className="font-bold">{formatMoney(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-secondary">Tax</span>
+                      <span className="font-bold">{formatMoney(tax)}</span>
+                    </div>
+                    <div className="mt-2 flex justify-between border-t border-outline/10 pt-3 text-lg">
+                      <span className="font-black">Total</span>
+                      <span className="font-black text-primary">{formatMoney(total)}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={confirmOrder}
+                    disabled={busy || cartItems.length === 0}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
+                  >
+                    <CheckCircle2 size={18} />
+                    {busy ? 'Placing order...' : hasConfirmedItems ? 'Place add-on order' : 'Place order'}
+                  </button>
+                </div>
+              )}
+
+              {customerTab === 'items' && (
+                <div className="space-y-6 pb-24">
                 {visibleMenu.map((category) => (
                   <section
                     id={`category-${category.id}`}
@@ -515,7 +703,7 @@ const SelfOrder = () => {
                         className="h-4 w-4 rounded-full"
                         style={{ backgroundColor: category.color || '#f59e0b' }}
                       />
-                      <h3 className="font-headline text-2xl font-black">{category.name}</h3>
+                      <h3 className="font-headline text-xl font-black">{category.name}</h3>
                       <div className="h-px flex-1 bg-outline/10" />
                     </div>
                     <div className="overflow-hidden rounded-3xl border border-outline/10 bg-surface-container-low">
@@ -527,52 +715,47 @@ const SelfOrder = () => {
                         return (
                           <article
                             key={item.id}
-                            className={`flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between ${
+                            className={`flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between ${
                               index > 0 ? 'border-t border-outline/10' : ''
                             }`}
                           >
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
-                                <h4 className="font-headline text-lg font-bold">{item.name}</h4>
+                                <h4 className="font-headline text-base font-bold md:text-lg">{item.name}</h4>
                                 {soldOut && (
                                   <span className="rounded-full bg-error-container px-2 py-1 text-[10px] font-black uppercase text-error">
                                     Sold out
                                   </span>
                                 )}
                               </div>
-                              <p className="mt-1 text-sm text-secondary">
+                              <p className="mt-1 text-xs text-secondary md:text-sm">
                                 {item.description || 'Freshly prepared to order.'}
                               </p>
-                              <p className="mt-2 font-black text-primary">{formatMoney(item.price)}</p>
+                              <p className="mt-2 text-sm font-black text-primary md:text-base">{formatMoney(item.price)}</p>
                             </div>
 
                             {screen === 'order' && (
-                              <div className="flex shrink-0 items-center gap-3">
+                              <div className="flex shrink-0 items-center gap-2">
                                 <button
                                   type="button"
                                   onClick={() => changeQuantity(item.id, -1)}
                                   disabled={quantity <= minimum}
-                                  className="flex h-11 w-11 items-center justify-center rounded-full border border-outline/10 bg-surface-container-lowest disabled:cursor-not-allowed disabled:opacity-30"
+                                  className="flex h-9 w-9 items-center justify-center rounded-full border border-outline/10 bg-surface-container-lowest disabled:cursor-not-allowed disabled:opacity-30"
                                   aria-label={`Remove one ${item.name}`}
                                 >
-                                  <Minus size={16} />
+                                  <Minus size={14} />
                                 </button>
-                                <div className="min-w-10 text-center">
-                                  <p className="text-lg font-black">{quantity}</p>
-                                  {minimum > 0 && (
-                                    <p className="text-[9px] font-bold uppercase text-outline">
-                                      {minimum} locked
-                                    </p>
-                                  )}
+                                <div className="min-w-8 text-center">
+                                  <p className="text-base font-black">{quantity}</p>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => changeQuantity(item.id, 1)}
                                   disabled={soldOut}
-                                  className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-on-primary disabled:cursor-not-allowed disabled:opacity-30"
+                                  className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-on-primary disabled:cursor-not-allowed disabled:opacity-30"
                                   aria-label={`Add one ${item.name}`}
                                 >
-                                  <Plus size={16} />
+                                  <Plus size={14} />
                                 </button>
                               </div>
                             )}
@@ -583,12 +766,13 @@ const SelfOrder = () => {
                   </section>
                 ))}
               </div>
+              )}
             </main>
           </div>
         )}
 
         {screen === 'review' && (
-          <main className="mx-auto max-w-3xl pb-10">
+          <main className="mx-auto max-w-2xl pb-8">
             <button
               type="button"
               onClick={() => setScreen('order')}
@@ -597,11 +781,11 @@ const SelfOrder = () => {
               <ChevronLeft size={17} />
               Back to menu
             </button>
-            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
+            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-4 md:p-6">
               <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
                 Review order
               </p>
-              <h2 className="mt-2 font-headline text-3xl font-black">Confirm your items</h2>
+              <h2 className="mt-2 font-headline text-2xl font-black md:text-[2rem]">Confirm your items</h2>
               <p className="mt-2 text-sm text-secondary">
                 Inventory is deducted only when you press confirm. After that, these quantities
                 cannot be reduced, but you can return and add more.
@@ -668,7 +852,7 @@ const SelfOrder = () => {
                 type="button"
                 onClick={confirmOrder}
                 disabled={busy || cartItems.length === 0}
-                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 font-black text-on-primary disabled:opacity-50"
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
               >
                 <CheckCircle2 size={18} />
                 {busy ? 'Confirming...' : hasConfirmedItems ? 'Confirm add-on items' : 'Confirm order'}
@@ -678,12 +862,12 @@ const SelfOrder = () => {
         )}
 
         {screen === 'awaiting_payment' && (
-          <main className="mx-auto max-w-2xl py-8">
-            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10">
+          <main className="mx-auto max-w-2xl py-6">
+            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
               <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
                 Waiting for chef
               </p>
-              <h2 className="mt-2 font-headline text-3xl font-black">Are all items done?</h2>
+              <h2 className="mt-2 font-headline text-2xl font-black md:text-[2rem]">Are all items done?</h2>
               <p className="mt-3 text-sm text-secondary">
                 Payment is locked until the chef finishes every item for this table. We will move
                 you to payment as soon as everything is marked done.
@@ -693,7 +877,7 @@ const SelfOrder = () => {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-secondary">Items finished</span>
                   <span className="font-black text-on-surface">
-                    {Object.values(order?.items || {}).filter((item) => item.status === 'done').length}/
+                    {Object.values(order?.items || {}).filter((item) => isCompletedStatus(item.status)).length}/
                     {Object.keys(order?.items || {}).length}
                   </span>
                 </div>
@@ -717,9 +901,9 @@ const SelfOrder = () => {
                     </div>
                     <span
                       className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
-                        item.status === 'done'
+                        isCompletedStatus(item.status)
                           ? 'bg-emerald-500/10 text-emerald-700'
-                          : item.status === 'claimed'
+                          : isPreparingStatus(item.status)
                             ? 'bg-amber-500/10 text-amber-700'
                             : 'bg-outline/10 text-secondary'
                       }`}
@@ -742,7 +926,7 @@ const SelfOrder = () => {
                   }
                 }}
                 disabled={!canProceedToPayment}
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-5 py-4 font-black text-primary transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 font-black text-primary transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <CheckCircle2 size={18} />
                 {canProceedToPayment ? 'Proceed to payment' : 'Payment locked until all items are done'}
@@ -752,21 +936,33 @@ const SelfOrder = () => {
                 type="button"
                 onClick={() => checkKitchenStatus()}
                 disabled={statusChecking}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 font-black text-on-primary disabled:opacity-50"
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
               >
                 {statusChecking ? 'Checking...' : 'Check kitchen status'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setScreen('order');
+                  setError('');
+                  setMessage('');
+                }}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-outline/10 bg-surface-container-lowest px-4 py-3 font-black text-secondary"
+              >
+                Return to order
               </button>
             </div>
           </main>
         )}
 
         {screen === 'payment' && (
-          <main className="mx-auto max-w-2xl py-8">
-            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10">
+          <main className="mx-auto max-w-2xl py-6">
+            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
               <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
                 Secure payment
               </p>
-              <h2 className="mt-2 font-headline text-3xl font-black">Choose a payment method</h2>
+              <h2 className="mt-2 font-headline text-2xl font-black md:text-[2rem]">Choose a payment method</h2>
               <p className="mt-3 text-sm text-secondary">
                 All items are done. Please complete payment to close the table bill.
               </p>
@@ -820,7 +1016,7 @@ const SelfOrder = () => {
                 type="button"
                 onClick={payForOrder}
                 disabled={busy || !canProceedToPayment}
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 font-black text-on-primary disabled:opacity-50"
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
               >
                 <CheckCircle2 size={18} />
                 {busy ? 'Processing payment...' : 'Pay now'}
@@ -830,15 +1026,15 @@ const SelfOrder = () => {
         )}
 
         {screen === 'confirmed' && (
-          <main className="mx-auto max-w-2xl py-8 text-center">
-            <div className="rounded-3xl border border-emerald-500/20 bg-surface-container-low p-7 md:p-10">
+          <main className="mx-auto max-w-2xl py-6 text-center">
+            <div className="rounded-3xl border border-emerald-500/20 bg-surface-container-low p-5 md:p-7">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-700">
                 <CheckCircle2 size={34} />
               </div>
               <p className="mt-5 text-[10px] font-black uppercase tracking-[0.28em] text-emerald-700">
                 Table released
               </p>
-              <h2 className="mt-2 font-headline text-3xl font-black">Payment complete</h2>
+              <h2 className="mt-2 font-headline text-2xl font-black md:text-[2rem]">Payment complete</h2>
               <p className="mt-3 text-sm text-secondary">
                 Your payment is complete, the bill is closed, and the table has been released
                 back to available status.
@@ -869,20 +1065,20 @@ const SelfOrder = () => {
       </div>
 
       {screen === 'order' && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-outline/10 bg-surface/95 p-3 backdrop-blur">
-          <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 rounded-2xl bg-surface-container-high px-4 py-3">
+        <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-outline/10 bg-surface/95 p-2.5 backdrop-blur">
+          <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 rounded-2xl bg-surface-container-high px-4 py-2.5">
             <div>
               <p className="text-xs font-bold text-secondary">{totalUnits} items</p>
-              <p className="font-headline text-xl font-black">{formatMoney(total)}</p>
+              <p className="font-headline text-lg font-black">{formatMoney(subtotal)}</p>
             </div>
             <button
               type="button"
               onClick={() => setScreen('review')}
               disabled={cartItems.length === 0}
-              className="inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-black text-on-primary disabled:opacity-40"
+              className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-black text-on-primary disabled:opacity-40"
             >
               <ShoppingBag size={17} />
-              View order
+              View Cart
             </button>
           </div>
         </div>
@@ -890,14 +1086,14 @@ const SelfOrder = () => {
 
       {showAuth && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4">
-          <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface p-5 shadow-2xl sm:rounded-3xl sm:p-7">
+          <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface p-4 shadow-2xl sm:rounded-3xl sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
                   Place an order
                 </p>
-                <h2 className="mt-2 font-headline text-2xl font-black">
-                  {sessionActive ? 'Join this table order' : 'Your details'}
+                <h2 className="mt-2 font-headline text-xl font-black md:text-2xl">
+                      {sessionActive ? 'Join this table order' : authStep === 'phone' ? 'Enter phone number' : 'Your details'}
                 </h2>
               </div>
               <button
@@ -937,59 +1133,101 @@ const SelfOrder = () => {
                 <button
                   type="submit"
                   disabled={busy || sessionPin.length !== 4}
-                  className="w-full rounded-2xl bg-primary px-4 py-4 font-black text-on-primary disabled:opacity-50"
+                  className="w-full rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
                 >
                   {busy ? 'Joining...' : 'Join and order'}
                 </button>
               </form>
             ) : (
-              <form onSubmit={startSession} className="mt-6 space-y-4">
-                <label className="grid gap-2 text-sm font-bold">
-                  Name
-                  <input
-                    required
-                    value={signup.name}
-                    onChange={(event) =>
-                      setSignup((current) => ({ ...current, name: event.target.value }))
-                    }
-                    placeholder="Your name"
-                    className="rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-3 outline-none focus:border-primary/40"
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-bold">
-                  Phone number
-                  <input
-                    required
-                    type="tel"
-                    value={signup.phone_no}
-                    onChange={(event) =>
-                      setSignup((current) => ({ ...current, phone_no: event.target.value }))
-                    }
-                    placeholder="Mobile number"
-                    className="rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-3 outline-none focus:border-primary/40"
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-bold">
-                  Email <span className="font-normal text-secondary">(optional)</span>
-                  <input
-                    type="email"
-                    value={signup.email}
-                    onChange={(event) =>
-                      setSignup((current) => ({ ...current, email: event.target.value }))
-                    }
-                    placeholder="Email address"
-                    className="rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-3 outline-none focus:border-primary/40"
-                  />
-                </label>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-4 font-black text-on-primary disabled:opacity-50"
-                >
-                  <UserPlus size={18} />
-                  {busy ? 'Starting...' : 'Continue to ordering'}
-                </button>
-              </form>
+              authStep === 'phone' ? (
+                <form onSubmit={lookupCustomerAndContinue} className="mt-6 space-y-4">
+                  <div className="rounded-2xl bg-surface-container-low p-4 text-sm text-secondary">
+                    Enter your phone number first. If we find your account, we’ll log you in right away. If not, we’ll ask for your name and email.
+                  </div>
+                  <label className="grid gap-2 text-sm font-bold">
+                    Phone number
+                    <input
+                      required
+                      type="tel"
+                      value={signup.phone_no}
+                      onChange={(event) =>
+                        setSignup((current) => ({ ...current, phone_no: event.target.value }))
+                      }
+                      placeholder="Mobile number"
+                      className="rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-3 outline-none focus:border-primary/40"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
+                  >
+                    <UserPlus size={18} />
+                    {busy ? 'Checking...' : 'Continue'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={startSession} className="mt-6 space-y-4">
+                  <div className="rounded-2xl bg-surface-container-low p-4 text-sm text-secondary">
+                    We could not find an account for this phone number. Please enter your name and email to create one and continue.
+                  </div>
+                  <label className="grid gap-2 text-sm font-bold">
+                    Name
+                    <input
+                      required
+                      value={signup.name}
+                      onChange={(event) =>
+                        setSignup((current) => ({ ...current, name: event.target.value }))
+                      }
+                      placeholder="Your name"
+                      className="rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-3 outline-none focus:border-primary/40"
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-bold">
+                    Phone number
+                    <input
+                      required
+                      type="tel"
+                      value={signup.phone_no}
+                      onChange={(event) =>
+                        setSignup((current) => ({ ...current, phone_no: event.target.value }))
+                      }
+                      placeholder="Mobile number"
+                      className="rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-3 outline-none focus:border-primary/40"
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-bold">
+                    Email
+                    <input
+                      required
+                      type="email"
+                      value={signup.email}
+                      onChange={(event) =>
+                        setSignup((current) => ({ ...current, email: event.target.value }))
+                      }
+                      placeholder="Email address"
+                      className="rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-3 outline-none focus:border-primary/40"
+                    />
+                  </label>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setAuthStep('phone')}
+                      className="inline-flex w-1/3 items-center justify-center gap-2 rounded-2xl border border-outline/10 bg-surface-container-low px-4 py-3 font-black text-secondary"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={busy}
+                      className="inline-flex w-2/3 items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-black text-on-primary disabled:opacity-50"
+                    >
+                      <UserPlus size={18} />
+                      {busy ? 'Starting...' : 'Create account and continue'}
+                    </button>
+                  </div>
+                </form>
+              )
             )}
           </div>
         </div>

@@ -7,6 +7,8 @@ import Sidebar from './components/Sidebar';
 
 // Auth Pages
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 // Admin Pages
 import AdminDashboard from './pages/Admin/Dashboard';
@@ -19,6 +21,7 @@ import AdminReports from './pages/Admin/Reports';
 
 // Cashier Pages
 import CashierTables from './pages/Cashier/Tables';
+import CashierBilling from './pages/Cashier/Billing';
 import CashierOrderScreen from './pages/Cashier/OrderScreen';
 import CashierOrdersList from './pages/Cashier/OrdersList';
 import KitchenDisplay from './pages/Kitchen/KitchenDisplay';
@@ -31,6 +34,7 @@ import InventoryCategories from './pages/Inventory/Categories';
 import InventoryStock from './pages/Inventory/Stock';
 
 import './index.css';
+import { getLandingPath } from './utils/roleRouting';
 
 // ─── Loading Screen ──────────────────────────────────────────────────────────
 const LoadingScreen = ({ label = 'Loading...' }) => (
@@ -52,11 +56,7 @@ const RootRedirect = () => {
   if (!user) return <Navigate to="/login" replace />;
 
   const role = user.role_name;
-  if (role === 'superadmin') return <Navigate to="/admin/dashboard" replace />;
-  if (role === 'cashier') return <Navigate to="/cashier/tables" replace />;
-  if (role === 'inventory_manager') return <Navigate to="/inventory/dashboard" replace />;
-  if (role === 'chef') return <Navigate to="/kds" replace />;
-  return <Navigate to="/login" replace />;
+  return <Navigate to={getLandingPath(role, '/login')} replace />;
 };
 
 // ─── Route Guard: require login ───────────────────────────────────────────────
@@ -119,6 +119,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/self-order/:tableId" element={<SelfOrder />} />
 
           {/* Protected routes */}
@@ -141,6 +143,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
               {/* ── Cashier routes ─── */}
               <Route element={<RequireRole allowedRoles={['cashier']} />}>
+                <Route path="/cashier/billing" element={<CashierBilling />} />
                 <Route path="/cashier/tables" element={<CashierTables />} />
                 <Route path="/cashier/order/:tableId" element={<CashierOrderScreen />} />
                 <Route path="/cashier/orders" element={<CashierOrdersList />} />
