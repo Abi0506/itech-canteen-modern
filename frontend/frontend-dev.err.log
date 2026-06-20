@@ -1,0 +1,858 @@
+[2m8:42:00 pm[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Customer\SelfOrder.jsx: Identifier 'orderItems' has already been declared. (133:8)
+
+[0m [90m 131 |[31m   [36mconst[31m totalUnits [33m=[31m cartItems[33m.[31mreduce((sum[33m,[31m item) [33m=>[31m sum [33m+[31m [33mNumber[31m(item[33m.[31mquantity [33m||[31m [35m0[31m)[33m,[31m [35m0[31m)[33m;[31m
+ [90m 132 |[31m   [36mconst[31m hasConfirmedItems [33m=[31m [33mObject[31m[33m.[31mvalues(confirmedQuantities)[33m.[31msome((quantity) [33m=>[31m quantity [33m>[31m [35m0[31m)[33m;[31m
+[31m[1m>[22m[31m[90m 133 |[31m   [36mconst[31m orderItems [33m=[31m useMemo(() [33m=>[31m [33mObject[31m[33m.[31mvalues(order[33m?[31m[33m.[31mitems [33m||[31m {})[33m,[31m [order])[33m;[31m
+ [90m     |[31m         [31m[1m^[22m[31m
+ [90m 134 |[31m   [36mconst[31m completedItems [33m=[31m orderItems[33m.[31mfilter((item) [33m=>[31m item[33m.[31mstatus [33m===[31m [32m'done'[31m)[33m.[31mlength[33m;[31m
+ [90m 135 |[31m   [36mconst[31m isReadyForPayment [33m=[31m orderItems[33m.[31mlength [33m>[31m [35m0[31m [33m&&[31m completedItems [33m===[31m orderItems[33m.[31mlength[33m;[31m
+ [90m 136 |[31m   [36mconst[31m canProceedToPayment [33m=[31m allItemsDone [33m||[31m isReadyForPayment[33m;[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Customer/SelfOrder.jsx[39m:133:8
+[33m  132|    const hasConfirmedItems = Object.values(confirmedQuantities).some((quantity) => quantity > 0);
+  133|    const orderItems = useMemo(() => Object.values(order?.items || {}), [order]);
+  134|    const completedItems = orderItems.filter((item) => item.status === 'done').length;
+     |      ^
+  135|    const isReadyForPayment = orderItems.length > 0 && completedItems === orderItems.length;
+  136|    const canProceedToPayment = allItemsDone || isReadyForPayment;[39m
+      at constructor (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:365:19)
+      at JSXParserMixin.raise (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6616:19)
+      at ScopeHandler.checkRedeclarationInScope (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:1619:19)
+      at ScopeHandler.declareName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:1585:12)
+      at JSXParserMixin.declareNameFromIdentifier (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:7584:16)
+      at JSXParserMixin.checkIdentifier (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:7580:12)
+      at JSXParserMixin.checkLVal (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:7517:12)
+      at JSXParserMixin.parseVarId (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13429:10)
+      at JSXParserMixin.parseVar (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13400:12)
+      at JSXParserMixin.parseVarStatement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13247:10)
+      at JSXParserMixin.parseStatementContent (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12868:23)
+      at JSXParserMixin.parseStatementLike (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12784:17)
+      at JSXParserMixin.parseStatementListItem (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12764:17)
+      at JSXParserMixin.parseBlockOrModuleBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13333:61)
+      at JSXParserMixin.parseBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13326:10)
+      at JSXParserMixin.parseBlock (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13314:10)
+      at JSXParserMixin.parseFunctionBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12117:24)
+      at JSXParserMixin.parseArrowExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12092:10)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11704:12)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12438:16)
+      at JSXParserMixin.parseMaybeAssignAllowIn (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:17)
+      at JSXParserMixin.parseVar (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13401:91)
+      at JSXParserMixin.parseVarStatement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13247:10)
+      at JSXParserMixin.parseStatementContent (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12868:23)
+      at JSXParserMixin.parseStatementLike (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12784:17)
+      at JSXParserMixin.parseModuleItem (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12761:17)
+      at JSXParserMixin.parseBlockOrModuleBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13333:36)
+      at JSXParserMixin.parseBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13326:10)
+      at JSXParserMixin.parseProgram (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12639:10)
+      at JSXParserMixin.parseTopLevel (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12629:25)
+      at JSXParserMixin.parse (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:14505:25)
+      at parse (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:14539:38)
+      at parser (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\core\lib\parser\index.js:41:34)
+      at parser.next (<anonymous>)
+      at normalizeFile (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\core\lib\transformation\normalize-file.js:51:37)
+      at normalizeFile.next (<anonymous>)
+      at run (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\core\lib\transformation\index.js:22:50)
+      at run.next (<anonymous>)
+      at transform (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\core\lib\transform.js:22:33)
+      at transform.next (<anonymous>)
+[2m8:42:00 pm[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Customer\SelfOrder.jsx: Identifier 'orderItems' has already been declared. (133:8)
+
+[0m [90m 131 |[31m   [36mconst[31m totalUnits [33m=[31m cartItems[33m.[31mreduce((sum[33m,[31m item) [33m=>[31m sum [33m+[31m [33mNumber[31m(item[33m.[31mquantity [33m||[31m [35m0[31m)[33m,[31m [35m0[31m)[33m;[31m
+ [90m 132 |[31m   [36mconst[31m hasConfirmedItems [33m=[31m [33mObject[31m[33m.[31mvalues(confirmedQuantities)[33m.[31msome((quantity) [33m=>[31m quantity [33m>[31m [35m0[31m)[33m;[31m
+[31m[1m>[22m[31m[90m 133 |[31m   [36mconst[31m orderItems [33m=[31m useMemo(() [33m=>[31m [33mObject[31m[33m.[31mvalues(order[33m?[31m[33m.[31mitems [33m||[31m {})[33m,[31m [order])[33m;[31m
+ [90m     |[31m         [31m[1m^[22m[31m
+ [90m 134 |[31m   [36mconst[31m completedItems [33m=[31m orderItems[33m.[31mfilter((item) [33m=>[31m item[33m.[31mstatus [33m===[31m [32m'done'[31m)[33m.[31mlength[33m;[31m
+ [90m 135 |[31m   [36mconst[31m isReadyForPayment [33m=[31m orderItems[33m.[31mlength [33m>[31m [35m0[31m [33m&&[31m completedItems [33m===[31m orderItems[33m.[31mlength[33m;[31m
+ [90m 136 |[31m   [36mconst[31m canProceedToPayment [33m=[31m allItemsDone [33m||[31m isReadyForPayment[33m;[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Customer/SelfOrder.jsx[39m:133:8
+[33m  132|    const hasConfirmedItems = Object.values(confirmedQuantities).some((quantity) => quantity > 0);
+  133|    const orderItems = useMemo(() => Object.values(order?.items || {}), [order]);
+  134|    const completedItems = orderItems.filter((item) => item.status === 'done').length;
+     |      ^
+  135|    const isReadyForPayment = orderItems.length > 0 && completedItems === orderItems.length;
+  136|    const canProceedToPayment = allItemsDone || isReadyForPayment;[39m
+      at constructor (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:365:19)
+      at JSXParserMixin.raise (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6616:19)
+      at ScopeHandler.checkRedeclarationInScope (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:1619:19)
+      at ScopeHandler.declareName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:1585:12)
+      at JSXParserMixin.declareNameFromIdentifier (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:7584:16)
+      at JSXParserMixin.checkIdentifier (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:7580:12)
+      at JSXParserMixin.checkLVal (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:7517:12)
+      at JSXParserMixin.parseVarId (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13429:10)
+      at JSXParserMixin.parseVar (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13400:12)
+      at JSXParserMixin.parseVarStatement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13247:10)
+      at JSXParserMixin.parseStatementContent (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12868:23)
+      at JSXParserMixin.parseStatementLike (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12784:17)
+      at JSXParserMixin.parseStatementListItem (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12764:17)
+      at JSXParserMixin.parseBlockOrModuleBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13333:61)
+      at JSXParserMixin.parseBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13326:10)
+      at JSXParserMixin.parseBlock (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13314:10)
+      at JSXParserMixin.parseFunctionBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12117:24)
+      at JSXParserMixin.parseArrowExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12092:10)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11704:12)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12438:16)
+      at JSXParserMixin.parseMaybeAssignAllowIn (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:17)
+      at JSXParserMixin.parseVar (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13401:91)
+      at JSXParserMixin.parseVarStatement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13247:10)
+      at JSXParserMixin.parseStatementContent (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12868:23)
+      at JSXParserMixin.parseStatementLike (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12784:17)
+      at JSXParserMixin.parseModuleItem (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12761:17)
+      at JSXParserMixin.parseBlockOrModuleBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13333:36)
+      at JSXParserMixin.parseBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13326:10)
+      at JSXParserMixin.parseProgram (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12639:10)
+      at JSXParserMixin.parseTopLevel (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12629:25)
+      at JSXParserMixin.parse (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:14505:25)
+      at parse (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:14539:38)
+      at parser (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\core\lib\parser\index.js:41:34)
+      at parser.next (<anonymous>)
+      at normalizeFile (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\core\lib\transformation\normalize-file.js:51:37)
+      at normalizeFile.next (<anonymous>)
+      at run (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\core\lib\transformation\index.js:22:50)
+      at run.next (<anonymous>)
+      at transform (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\core\lib\transform.js:22:33)
+      at transform.next (<anonymous>)
+[2m9:33:01 pm[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Customer\SelfOrder.jsx: Unexpected token (804:1)
+
+[0m [90m 802 |[31m
+ [90m 803 |[31m         {screen [33m===[31m [32m'payment'[31m [33m&&[31m (
+[31m[1m>[22m[31m[90m 804 |[31m [33m<<[31m[33m<<[31m[33m<<[31m[33m<[31m [33mHEAD[31m
+ [90m     |[31m  [31m[1m^[22m[31m
+ [90m 805 |[31m           [33m<[31m[33mmain[31m className[33m=[31m[32m"mx-auto max-w-2xl py-8"[31m[33m>[31m
+ [90m 806 |[31m             [33m<[31m[33mdiv[31m className[33m=[31m[32m"rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10"[31m[33m>[31m
+ [90m 807 |[31m               [33m<[31m[33mp[31m className[33m=[31m[32m"text-[10px] font-black uppercase tracking-[0.28em] text-primary"[31m[33m>[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Customer/SelfOrder.jsx[39m:804:1
+[33m  816|              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+  817|                <section className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
+  818|                  <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
+     |     ^
+  819|                    Payment
+  820|                  </p>[39m
+      at constructor (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:365:19)
+      at JSXParserMixin.raise (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6616:19)
+      at JSXParserMixin.unexpected (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6636:16)
+      at JSXParserMixin.jsxParseIdentifier (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4581:12)
+      at JSXParserMixin.jsxParseNamespacedName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4588:23)
+      at JSXParserMixin.jsxParseElementName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4597:21)
+      at JSXParserMixin.jsxParseOpeningElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4673:22)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4698:33)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseMaybeAssignAllowIn (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:17)
+      at JSXParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12510:17)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11692:28)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOpBaseRightExpr (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11003:34)
+      at JSXParserMixin.parseExprOpRightExpr (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10998:21)
+      at JSXParserMixin.parseExprOp (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10964:27)
+      at JSXParserMixin.parseExprOp (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10970:21)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10925:17)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at JSXParserMixin.parseExpressionBase (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10801:23)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:17)
+      at JSXParserMixin.jsxParseExpressionContainer (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4644:31)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4723:36)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+[2m9:33:01 pm[22m [31m[1m[vite][22m[39m Pre-transform error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Cashier\Tables.jsx: Unexpected token (88:1)
+
+[0m [90m 86 |[39m                     [33m<[39m[33m/[39m[33mspan[39m[33m>[39m
+ [90m 87 |[39m                   [33m<[39m[33m/[39m[33mdiv[39m[33m>[39m
+[31m[1m>[22m[39m[90m 88 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mHEAD[39m
+ [90m    |[39m  [31m[1m^[22m[39m
+ [90m 89 |[39m                   [33m<[39m[33mspan[39m className[33m=[39m{[32m`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${t.current_status === 'available' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :[39m
+ [90m 90 |[39m [32m                      t.current_status === 'occupied' ? 'bg-primary-fixed text-on-primary-fixed-variant border-primary/10' :[39m
+ [90m 91 |[39m [32m                        'bg-amber-100 text-amber-800 border-amber-200'[39m[0m
+[2m9:33:02 pm[22m [31m[1m[vite][22m[39m Pre-transform error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Customer\SelfOrder.jsx: Unexpected token (804:1)
+
+[0m [90m 802 |[39m
+ [90m 803 |[39m         {screen [33m===[39m [32m'payment'[39m [33m&&[39m (
+[31m[1m>[22m[39m[90m 804 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mHEAD[39m
+ [90m     |[39m  [31m[1m^[22m[39m
+ [90m 805 |[39m           [33m<[39m[33mmain[39m className[33m=[39m[32m"mx-auto max-w-2xl py-8"[39m[33m>[39m
+ [90m 806 |[39m             [33m<[39m[33mdiv[39m className[33m=[39m[32m"rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10"[39m[33m>[39m
+ [90m 807 |[39m               [33m<[39m[33mp[39m className[33m=[39m[32m"text-[10px] font-black uppercase tracking-[0.28em] text-primary"[39m[33m>[39m[0m
+[2m9:33:02 pm[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Customer\SelfOrder.jsx: Unexpected token (804:1)
+
+[0m [90m 802 |[31m
+ [90m 803 |[31m         {screen [33m===[31m [32m'payment'[31m [33m&&[31m (
+[31m[1m>[22m[31m[90m 804 |[31m [33m<<[31m[33m<<[31m[33m<<[31m[33m<[31m [33mHEAD[31m
+ [90m     |[31m  [31m[1m^[22m[31m
+ [90m 805 |[31m           [33m<[31m[33mmain[31m className[33m=[31m[32m"mx-auto max-w-2xl py-8"[31m[33m>[31m
+ [90m 806 |[31m             [33m<[31m[33mdiv[31m className[33m=[31m[32m"rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10"[31m[33m>[31m
+ [90m 807 |[31m               [33m<[31m[33mp[31m className[33m=[31m[32m"text-[10px] font-black uppercase tracking-[0.28em] text-primary"[31m[33m>[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Customer/SelfOrder.jsx[39m:804:1
+[33m  816|              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+  817|                <section className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
+  818|                  <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
+     |     ^
+  819|                    Payment
+  820|                  </p>[39m
+      at constructor (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:365:19)
+      at JSXParserMixin.raise (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6616:19)
+      at JSXParserMixin.unexpected (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6636:16)
+      at JSXParserMixin.jsxParseIdentifier (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4581:12)
+      at JSXParserMixin.jsxParseNamespacedName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4588:23)
+      at JSXParserMixin.jsxParseElementName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4597:21)
+      at JSXParserMixin.jsxParseOpeningElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4673:22)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4698:33)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseMaybeAssignAllowIn (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:17)
+      at JSXParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12510:17)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11692:28)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOpBaseRightExpr (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11003:34)
+      at JSXParserMixin.parseExprOpRightExpr (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10998:21)
+      at JSXParserMixin.parseExprOp (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10964:27)
+      at JSXParserMixin.parseExprOp (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10970:21)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10925:17)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at JSXParserMixin.parseExpressionBase (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10801:23)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:17)
+      at JSXParserMixin.jsxParseExpressionContainer (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4644:31)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4723:36)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+[2m9:33:02 pm[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Cashier\Tables.jsx: Unexpected token (88:1)
+
+[0m [90m 86 |[31m                     [33m<[31m[33m/[31m[33mspan[31m[33m>[31m
+ [90m 87 |[31m                   [33m<[31m[33m/[31m[33mdiv[31m[33m>[31m
+[31m[1m>[22m[31m[90m 88 |[31m [33m<<[31m[33m<<[31m[33m<<[31m[33m<[31m [33mHEAD[31m
+ [90m    |[31m  [31m[1m^[22m[31m
+ [90m 89 |[31m                   [33m<[31m[33mspan[31m className[33m=[31m{[32m`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${t.current_status === 'available' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :[31m
+ [90m 90 |[31m [32m                      t.current_status === 'occupied' ? 'bg-primary-fixed text-on-primary-fixed-variant border-primary/10' :[31m
+ [90m 91 |[31m [32m                        'bg-amber-100 text-amber-800 border-amber-200'[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Cashier/Tables.jsx[39m:88:1
+[33m  87 |                    </div>
+  88 |  <<<<<<< HEAD
+  89 |                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${t.current_status === 'available' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+     |                                                                             ^
+  90 |                        t.current_status === 'occupied' ? 'bg-primary-fixed text-on-primary-fixed-variant border-primary/10' :
+  91 |                          'bg-amber-100 text-amber-800 border-amber-200'[39m
+      at constructor (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:365:19)
+      at JSXParserMixin.raise (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6616:19)
+      at JSXParserMixin.unexpected (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6636:16)
+      at JSXParserMixin.jsxParseIdentifier (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4581:12)
+      at JSXParserMixin.jsxParseNamespacedName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4588:23)
+      at JSXParserMixin.jsxParseElementName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4597:21)
+      at JSXParserMixin.jsxParseOpeningElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4673:22)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4698:33)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseMaybeAssignAllowIn (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:17)
+      at JSXParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12510:17)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11692:28)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at JSXParserMixin.parseExpressionBase (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10801:23)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12438:16)
+      at JSXParserMixin.parseExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:17)
+      at JSXParserMixin.parseReturnStatement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13159:28)
+      at JSXParserMixin.parseStatementContent (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12815:21)
+      at JSXParserMixin.parseStatementLike (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12784:17)
+      at JSXParserMixin.parseStatementListItem (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12764:17)
+      at JSXParserMixin.parseBlockOrModuleBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13333:61)
+      at JSXParserMixin.parseBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13326:10)
+      at JSXParserMixin.parseBlock (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13314:10)
+      at JSXParserMixin.parseFunctionBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12117:24)
+      at JSXParserMixin.parseArrowExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12092:10)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11704:12)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+[2m9:33:02 pm[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Cashier\Tables.jsx: Unexpected token (88:1)
+
+[0m [90m 86 |[31m                     [33m<[31m[33m/[31m[33mspan[31m[33m>[31m
+ [90m 87 |[31m                   [33m<[31m[33m/[31m[33mdiv[31m[33m>[31m
+[31m[1m>[22m[31m[90m 88 |[31m [33m<<[31m[33m<<[31m[33m<<[31m[33m<[31m [33mHEAD[31m
+ [90m    |[31m  [31m[1m^[22m[31m
+ [90m 89 |[31m                   [33m<[31m[33mspan[31m className[33m=[31m{[32m`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${t.current_status === 'available' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :[31m
+ [90m 90 |[31m [32m                      t.current_status === 'occupied' ? 'bg-primary-fixed text-on-primary-fixed-variant border-primary/10' :[31m
+ [90m 91 |[31m [32m                        'bg-amber-100 text-amber-800 border-amber-200'[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Cashier/Tables.jsx[39m:88:1
+[33m  87 |                    </div>
+  88 |  <<<<<<< HEAD
+  89 |                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${t.current_status === 'available' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+     |                                                                             ^
+  90 |                        t.current_status === 'occupied' ? 'bg-primary-fixed text-on-primary-fixed-variant border-primary/10' :
+  91 |                          'bg-amber-100 text-amber-800 border-amber-200'[39m
+      at constructor (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:365:19)
+      at JSXParserMixin.raise (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6616:19)
+      at JSXParserMixin.unexpected (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6636:16)
+      at JSXParserMixin.jsxParseIdentifier (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4581:12)
+      at JSXParserMixin.jsxParseNamespacedName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4588:23)
+      at JSXParserMixin.jsxParseElementName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4597:21)
+      at JSXParserMixin.jsxParseOpeningElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4673:22)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4698:33)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseMaybeAssignAllowIn (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:17)
+      at JSXParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12510:17)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11692:28)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at JSXParserMixin.parseExpressionBase (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10801:23)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12438:16)
+      at JSXParserMixin.parseExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:17)
+      at JSXParserMixin.parseReturnStatement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13159:28)
+      at JSXParserMixin.parseStatementContent (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12815:21)
+      at JSXParserMixin.parseStatementLike (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12784:17)
+      at JSXParserMixin.parseStatementListItem (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12764:17)
+      at JSXParserMixin.parseBlockOrModuleBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13333:61)
+      at JSXParserMixin.parseBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13326:10)
+      at JSXParserMixin.parseBlock (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13314:10)
+      at JSXParserMixin.parseFunctionBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12117:24)
+      at JSXParserMixin.parseArrowExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12092:10)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11704:12)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+[2m9:33:02 pm[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Cashier\Tables.jsx: Unexpected token (88:1)
+
+[0m [90m 86 |[31m                     [33m<[31m[33m/[31m[33mspan[31m[33m>[31m
+ [90m 87 |[31m                   [33m<[31m[33m/[31m[33mdiv[31m[33m>[31m
+[31m[1m>[22m[31m[90m 88 |[31m [33m<<[31m[33m<<[31m[33m<<[31m[33m<[31m [33mHEAD[31m
+ [90m    |[31m  [31m[1m^[22m[31m
+ [90m 89 |[31m                   [33m<[31m[33mspan[31m className[33m=[31m{[32m`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${t.current_status === 'available' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :[31m
+ [90m 90 |[31m [32m                      t.current_status === 'occupied' ? 'bg-primary-fixed text-on-primary-fixed-variant border-primary/10' :[31m
+ [90m 91 |[31m [32m                        'bg-amber-100 text-amber-800 border-amber-200'[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Cashier/Tables.jsx[39m:88:1
+[33m  87 |                    </div>
+  88 |  <<<<<<< HEAD
+  89 |                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${t.current_status === 'available' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+     |                                                                             ^
+  90 |                        t.current_status === 'occupied' ? 'bg-primary-fixed text-on-primary-fixed-variant border-primary/10' :
+  91 |                          'bg-amber-100 text-amber-800 border-amber-200'[39m
+      at constructor (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:365:19)
+      at JSXParserMixin.raise (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6616:19)
+      at JSXParserMixin.unexpected (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6636:16)
+      at JSXParserMixin.jsxParseIdentifier (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4581:12)
+      at JSXParserMixin.jsxParseNamespacedName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4588:23)
+      at JSXParserMixin.jsxParseElementName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4597:21)
+      at JSXParserMixin.jsxParseOpeningElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4673:22)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4698:33)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseMaybeAssignAllowIn (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:17)
+      at JSXParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12510:17)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11692:28)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at JSXParserMixin.parseExpressionBase (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10801:23)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12438:16)
+      at JSXParserMixin.parseExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:17)
+      at JSXParserMixin.parseReturnStatement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13159:28)
+      at JSXParserMixin.parseStatementContent (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12815:21)
+      at JSXParserMixin.parseStatementLike (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12784:17)
+      at JSXParserMixin.parseStatementListItem (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12764:17)
+      at JSXParserMixin.parseBlockOrModuleBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13333:61)
+      at JSXParserMixin.parseBlockBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13326:10)
+      at JSXParserMixin.parseBlock (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:13314:10)
+      at JSXParserMixin.parseFunctionBody (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12117:24)
+      at JSXParserMixin.parseArrowExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12092:10)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11704:12)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+[2m9:33:02 pm[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Customer\SelfOrder.jsx: Unexpected token (804:1)
+
+[0m [90m 802 |[31m
+ [90m 803 |[31m         {screen [33m===[31m [32m'payment'[31m [33m&&[31m (
+[31m[1m>[22m[31m[90m 804 |[31m [33m<<[31m[33m<<[31m[33m<<[31m[33m<[31m [33mHEAD[31m
+ [90m     |[31m  [31m[1m^[22m[31m
+ [90m 805 |[31m           [33m<[31m[33mmain[31m className[33m=[31m[32m"mx-auto max-w-2xl py-8"[31m[33m>[31m
+ [90m 806 |[31m             [33m<[31m[33mdiv[31m className[33m=[31m[32m"rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10"[31m[33m>[31m
+ [90m 807 |[31m               [33m<[31m[33mp[31m className[33m=[31m[32m"text-[10px] font-black uppercase tracking-[0.28em] text-primary"[31m[33m>[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Customer/SelfOrder.jsx[39m:804:1
+[33m  816|              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+  817|                <section className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
+  818|                  <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
+     |     ^
+  819|                    Payment
+  820|                  </p>[39m
+      at constructor (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:365:19)
+      at JSXParserMixin.raise (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6616:19)
+      at JSXParserMixin.unexpected (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6636:16)
+      at JSXParserMixin.jsxParseIdentifier (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4581:12)
+      at JSXParserMixin.jsxParseNamespacedName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4588:23)
+      at JSXParserMixin.jsxParseElementName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4597:21)
+      at JSXParserMixin.jsxParseOpeningElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4673:22)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4698:33)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseMaybeAssignAllowIn (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:17)
+      at JSXParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12510:17)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11692:28)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOpBaseRightExpr (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11003:34)
+      at JSXParserMixin.parseExprOpRightExpr (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10998:21)
+      at JSXParserMixin.parseExprOp (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10964:27)
+      at JSXParserMixin.parseExprOp (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10970:21)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10925:17)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at JSXParserMixin.parseExpressionBase (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10801:23)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:17)
+      at JSXParserMixin.jsxParseExpressionContainer (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4644:31)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4723:36)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+[2m9:33:02 pm[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Customer\SelfOrder.jsx: Unexpected token (804:1)
+
+[0m [90m 802 |[31m
+ [90m 803 |[31m         {screen [33m===[31m [32m'payment'[31m [33m&&[31m (
+[31m[1m>[22m[31m[90m 804 |[31m [33m<<[31m[33m<<[31m[33m<<[31m[33m<[31m [33mHEAD[31m
+ [90m     |[31m  [31m[1m^[22m[31m
+ [90m 805 |[31m           [33m<[31m[33mmain[31m className[33m=[31m[32m"mx-auto max-w-2xl py-8"[31m[33m>[31m
+ [90m 806 |[31m             [33m<[31m[33mdiv[31m className[33m=[31m[32m"rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10"[31m[33m>[31m
+ [90m 807 |[31m               [33m<[31m[33mp[31m className[33m=[31m[32m"text-[10px] font-black uppercase tracking-[0.28em] text-primary"[31m[33m>[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Customer/SelfOrder.jsx[39m:804:1
+[33m  816|              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+  817|                <section className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
+  818|                  <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
+     |     ^
+  819|                    Payment
+  820|                  </p>[39m
+      at constructor (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:365:19)
+      at JSXParserMixin.raise (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6616:19)
+      at JSXParserMixin.unexpected (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6636:16)
+      at JSXParserMixin.jsxParseIdentifier (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4581:12)
+      at JSXParserMixin.jsxParseNamespacedName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4588:23)
+      at JSXParserMixin.jsxParseElementName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4597:21)
+      at JSXParserMixin.jsxParseOpeningElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4673:22)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4698:33)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseMaybeAssignAllowIn (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:17)
+      at JSXParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12510:17)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11692:28)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOpBaseRightExpr (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11003:34)
+      at JSXParserMixin.parseExprOpRightExpr (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10998:21)
+      at JSXParserMixin.parseExprOp (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10964:27)
+      at JSXParserMixin.parseExprOp (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10970:21)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10925:17)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at JSXParserMixin.parseExpressionBase (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10801:23)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:17)
+      at JSXParserMixin.jsxParseExpressionContainer (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4644:31)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4723:36)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+[2m9:33:02 pm[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Customer\SelfOrder.jsx: Unexpected token (804:1)
+
+[0m [90m 802 |[31m
+ [90m 803 |[31m         {screen [33m===[31m [32m'payment'[31m [33m&&[31m (
+[31m[1m>[22m[31m[90m 804 |[31m [33m<<[31m[33m<<[31m[33m<<[31m[33m<[31m [33mHEAD[31m
+ [90m     |[31m  [31m[1m^[22m[31m
+ [90m 805 |[31m           [33m<[31m[33mmain[31m className[33m=[31m[32m"mx-auto max-w-2xl py-8"[31m[33m>[31m
+ [90m 806 |[31m             [33m<[31m[33mdiv[31m className[33m=[31m[32m"rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10"[31m[33m>[31m
+ [90m 807 |[31m               [33m<[31m[33mp[31m className[33m=[31m[32m"text-[10px] font-black uppercase tracking-[0.28em] text-primary"[31m[33m>[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Customer/SelfOrder.jsx[39m:804:1
+[33m  816|              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+  817|                <section className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
+  818|                  <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
+     |     ^
+  819|                    Payment
+  820|                  </p>[39m
+      at constructor (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:365:19)
+      at JSXParserMixin.raise (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6616:19)
+      at JSXParserMixin.unexpected (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6636:16)
+      at JSXParserMixin.jsxParseIdentifier (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4581:12)
+      at JSXParserMixin.jsxParseNamespacedName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4588:23)
+      at JSXParserMixin.jsxParseElementName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4597:21)
+      at JSXParserMixin.jsxParseOpeningElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4673:22)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4698:33)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseMaybeAssignAllowIn (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:17)
+      at JSXParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12510:17)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11692:28)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOpBaseRightExpr (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11003:34)
+      at JSXParserMixin.parseExprOpRightExpr (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10998:21)
+      at JSXParserMixin.parseExprOp (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10964:27)
+      at JSXParserMixin.parseExprOp (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10970:21)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10925:17)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at JSXParserMixin.parseExpressionBase (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10801:23)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:17)
+      at JSXParserMixin.jsxParseExpressionContainer (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4644:31)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4723:36)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+[2m9:36:45 pm[22m [31m[1m[vite][22m[39m Pre-transform error: Failed to load url /src/pages/Cashier/Tables.jsx (resolved id: C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Cashier/Tables.jsx) in C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/main.jsx. Does the file exist?
+[2m9:36:45 pm[22m [31m[1m[vite][22m[39m Pre-transform error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Customer\SelfOrder.jsx: Unexpected token (804:1)
+
+[0m [90m 802 |[39m
+ [90m 803 |[39m         {screen [33m===[39m [32m'payment'[39m [33m&&[39m (
+[31m[1m>[22m[39m[90m 804 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mHEAD[39m
+ [90m     |[39m  [31m[1m^[22m[39m
+ [90m 805 |[39m           [33m<[39m[33mmain[39m className[33m=[39m[32m"mx-auto max-w-2xl py-8"[39m[33m>[39m
+ [90m 806 |[39m             [33m<[39m[33mdiv[39m className[33m=[39m[32m"rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10"[39m[33m>[39m
+ [90m 807 |[39m               [33m<[39m[33mp[39m className[33m=[39m[32m"text-[10px] font-black uppercase tracking-[0.28em] text-primary"[39m[33m>[39m[0m
+[2m9:36:45 pm[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\src\pages\Customer\SelfOrder.jsx: Unexpected token (804:1)
+
+[0m [90m 802 |[31m
+ [90m 803 |[31m         {screen [33m===[31m [32m'payment'[31m [33m&&[31m (
+[31m[1m>[22m[31m[90m 804 |[31m [33m<<[31m[33m<<[31m[33m<<[31m[33m<[31m [33mHEAD[31m
+ [90m     |[31m  [31m[1m^[22m[31m
+ [90m 805 |[31m           [33m<[31m[33mmain[31m className[33m=[31m[32m"mx-auto max-w-2xl py-8"[31m[33m>[31m
+ [90m 806 |[31m             [33m<[31m[33mdiv[31m className[33m=[31m[32m"rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10"[31m[33m>[31m
+ [90m 807 |[31m               [33m<[31m[33mp[31m className[33m=[31m[32m"text-[10px] font-black uppercase tracking-[0.28em] text-primary"[31m[33m>[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Customer/SelfOrder.jsx[39m:804:1
+[33m  816|              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+  817|                <section className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
+  818|                  <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
+     |     ^
+  819|                    Payment
+  820|                  </p>[39m
+      at constructor (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:365:19)
+      at JSXParserMixin.raise (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6616:19)
+      at JSXParserMixin.unexpected (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:6636:16)
+      at JSXParserMixin.jsxParseIdentifier (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4581:12)
+      at JSXParserMixin.jsxParseNamespacedName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4588:23)
+      at JSXParserMixin.jsxParseElementName (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4597:21)
+      at JSXParserMixin.jsxParseOpeningElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4673:22)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4698:33)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseMaybeAssignAllowIn (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10817:17)
+      at JSXParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12510:17)
+      at JSXParserMixin.parseParenAndDistinguishExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11692:28)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11348:23)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4776:20)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOpBaseRightExpr (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11003:34)
+      at JSXParserMixin.parseExprOpRightExpr (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10998:21)
+      at JSXParserMixin.parseExprOp (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10964:27)
+      at JSXParserMixin.parseExprOp (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10970:21)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10925:17)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+      at JSXParserMixin.parseMaybeAssign (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10848:21)
+      at JSXParserMixin.parseExpressionBase (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10801:23)
+      at C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:39
+      at JSXParserMixin.allowInAnd (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:12443:12)
+      at JSXParserMixin.parseExpression (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10797:17)
+      at JSXParserMixin.jsxParseExpressionContainer (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4644:31)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4723:36)
+      at JSXParserMixin.jsxParseElementAt (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4710:32)
+      at JSXParserMixin.jsxParseElement (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4761:17)
+      at JSXParserMixin.parseExprAtom (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:4771:19)
+      at JSXParserMixin.parseExprSubscripts (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11098:23)
+      at JSXParserMixin.parseUpdate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11083:21)
+      at JSXParserMixin.parseMaybeUnary (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:11063:23)
+      at JSXParserMixin.parseMaybeUnaryOrPrivate (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10916:61)
+      at JSXParserMixin.parseExprOps (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10921:23)
+      at JSXParserMixin.parseMaybeConditional (C:\Users\adhit\OneDrive\Desktop\itech-canteen-modern\frontend\node_modules\@babel\parser\lib\index.js:10898:23)
+[2m12:57:35 am[22m [31m[1m[vite][22m[39m Pre-transform error: Failed to load url /src/pages/Kitchen/KitchenDisplay.jsx (resolved id: C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Kitchen/KitchenDisplay.jsx) in C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/main.jsx. Does the file exist?
+[2m12:57:35 am[22m [31m[1m[vite][22m[39m Pre-transform error: Failed to load url /src/pages/Customer/SelfOrder.jsx (resolved id: C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Customer/SelfOrder.jsx) in C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/main.jsx. Does the file exist?
+[2m12:57:35 am[22m [31m[1m[vite][22m[39m Pre-transform error: Failed to resolve import "../../utils/orderItems" from "src/pages/Cashier/OrderScreen.jsx". Does the file exist?
+[2m12:57:36 am[22m [31m[1m[vite][22m[39m [31mInternal server error: Failed to resolve import "../../utils/orderItems" from "src/pages/Cashier/OrderScreen.jsx". Does the file exist?[39m
+  Plugin: [35mvite:import-analysis[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Cashier/OrderScreen.jsx[39m:5:32
+[33m  20 |  import api from "../../utils/api";
+  21 |  import { ArrowLeft, Search, ShoppingCart, CreditCard, UserPlus } from "lucide-react";
+  22 |  import { groupOrderItems } from "../../utils/orderItems";
+     |                                   ^
+  23 |  const OrderScreen = () => {
+  24 |    _s();[39m
+      at TransformPluginContext._formatError (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49258:41)
+      at TransformPluginContext.error (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49253:16)
+      at normalizeUrl (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64307:23)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64439:39
+      at async Promise.all (index 7)
+      at async TransformPluginContext.transform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64366:7)
+      at async PluginContainer.transform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49099:18)
+      at async loadAndTransform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51978:27)
+[2m12:57:36 am[22m [31m[1m[vite][22m[39m [31mInternal server error: Failed to resolve import "../../utils/orderItems" from "src/pages/Cashier/OrderScreen.jsx". Does the file exist?[39m
+  Plugin: [35mvite:import-analysis[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Cashier/OrderScreen.jsx[39m:5:32
+[33m  20 |  import api from "../../utils/api";
+  21 |  import { ArrowLeft, Search, ShoppingCart, CreditCard, UserPlus } from "lucide-react";
+  22 |  import { groupOrderItems } from "../../utils/orderItems";
+     |                                   ^
+  23 |  const OrderScreen = () => {
+  24 |    _s();[39m
+      at TransformPluginContext._formatError (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49258:41)
+      at TransformPluginContext.error (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49253:16)
+      at normalizeUrl (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64307:23)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64439:39
+      at async Promise.all (index 7)
+      at async TransformPluginContext.transform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64366:7)
+      at async PluginContainer.transform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49099:18)
+      at async loadAndTransform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51978:27)
+[2m12:57:36 am[22m [31m[1m[vite][22m[39m [31mInternal server error: Failed to resolve import "../../utils/orderItems" from "src/pages/Cashier/OrderScreen.jsx". Does the file exist?[39m
+  Plugin: [35mvite:import-analysis[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Cashier/OrderScreen.jsx[39m:5:32
+[33m  20 |  import api from "../../utils/api";
+  21 |  import { ArrowLeft, Search, ShoppingCart, CreditCard, UserPlus } from "lucide-react";
+  22 |  import { groupOrderItems } from "../../utils/orderItems";
+     |                                   ^
+  23 |  const OrderScreen = () => {
+  24 |    _s();[39m
+      at TransformPluginContext._formatError (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49258:41)
+      at TransformPluginContext.error (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49253:16)
+      at normalizeUrl (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64307:23)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64439:39
+      at async Promise.all (index 7)
+      at async TransformPluginContext.transform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64366:7)
+      at async PluginContainer.transform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49099:18)
+      at async loadAndTransform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51978:27)
+[2m12:57:36 am[22m [31m[1m[vite][22m[39m [31mInternal server error: Failed to resolve import "../../utils/orderItems" from "src/pages/Cashier/OrderScreen.jsx". Does the file exist?[39m
+  Plugin: [35mvite:import-analysis[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Cashier/OrderScreen.jsx[39m:5:32
+[33m  20 |  import api from "../../utils/api";
+  21 |  import { ArrowLeft, Search, ShoppingCart, CreditCard, UserPlus } from "lucide-react";
+  22 |  import { groupOrderItems } from "../../utils/orderItems";
+     |                                   ^
+  23 |  const OrderScreen = () => {
+  24 |    _s();[39m
+      at TransformPluginContext._formatError (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49258:41)
+      at TransformPluginContext.error (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49253:16)
+      at normalizeUrl (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64307:23)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64439:39
+      at async Promise.all (index 7)
+      at async TransformPluginContext.transform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64366:7)
+      at async PluginContainer.transform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49099:18)
+      at async loadAndTransform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51978:27)
+[2m12:57:36 am[22m [31m[1m[vite][22m[39m [31mInternal server error: Failed to resolve import "../../utils/orderItems" from "src/pages/Cashier/OrderScreen.jsx". Does the file exist?[39m
+  Plugin: [35mvite:import-analysis[39m
+  File: [36mC:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/src/pages/Cashier/OrderScreen.jsx[39m:5:32
+[33m  20 |  import api from "../../utils/api";
+  21 |  import { ArrowLeft, Search, ShoppingCart, CreditCard, UserPlus } from "lucide-react";
+  22 |  import { groupOrderItems } from "../../utils/orderItems";
+     |                                   ^
+  23 |  const OrderScreen = () => {
+  24 |    _s();[39m
+      at TransformPluginContext._formatError (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49258:41)
+      at TransformPluginContext.error (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49253:16)
+      at normalizeUrl (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64307:23)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64439:39
+      at async Promise.all (index 7)
+      at async TransformPluginContext.transform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64366:7)
+      at async PluginContainer.transform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49099:18)
+      at async loadAndTransform (file:///C:/Users/adhit/OneDrive/Desktop/itech-canteen-modern/frontend/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51978:27)
