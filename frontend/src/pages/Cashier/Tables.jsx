@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
-import { Layers, Coffee, Landmark, User, Trash2 } from 'lucide-react';
+import { ArrowRight, CircleDashed, Sparkles } from 'lucide-react';
 
 const Tables = () => {
   const [tables, setTables] = useState([]);
@@ -24,98 +24,69 @@ const Tables = () => {
   }, []);
 
   const handleSelectTable = (table) => {
-    if (table.current_status === 'available') {
-      navigate(`/cashier/order/${table.id}`);
-    } else {
-      navigate(`/cashier/order/${table.id}`);
-    }
-  };
-
-  const handleRelease = async (tableId, e) => {
-    e.stopPropagation();
-    if (!window.confirm('Mark this table as freed (available)?')) return;
-    try {
-      await api.post(`/cashier/tables/${tableId}/release`);
-      fetchTables();
-    } catch (err) {
-      alert('Failed to release table');
-    }
+    navigate(`/cashier/order/${table.id}`);
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-[50vh] bg-surface">
+        <div className="flex items-center gap-3 rounded-full border border-outline/10 bg-surface-container-low px-4 py-3 text-secondary shadow-sm">
+          <CircleDashed className="animate-spin" size={18} />
+          <span className="text-sm font-medium">Loading tables...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-6 font-body">
-      <div>
-        <h1 className="font-headline font-bold text-2xl text-on-surface">Tables Layout</h1>
-        <p className="text-secondary text-sm">Select an available table to begin a cashier checkout order, or release reserved tables.</p>
-      </div>
+    <div className="relative min-h-[calc(100vh-57px)] overflow-hidden bg-[linear-gradient(180deg,#fffaf4_0%,#fffdf8_100%)] font-body">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(255,255,255,0))]" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8 space-y-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+              <Sparkles size={12} />
+              Cashier Desk
+            </div>
+            <h1 className="font-headline text-3xl font-black tracking-tight text-on-surface sm:text-4xl">
+              Select a table
+            </h1>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-secondary sm:text-base">
+              Tap any table to open cashier ordering, add items, and complete billing in one flow.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {tables.map((t) => {
-          let cardBg = 'bg-emerald-50/50 border-emerald-200';
-          let statusText = 'Available';
-          if (t.current_status === 'occupied') {
-            cardBg = 'bg-primary/5 border-primary/20';
-            statusText = 'Occupied';
-          } else if (t.current_status === 'reserved') {
-            cardBg = 'bg-amber-50/50 border-amber-200';
-            statusText = 'Reserved';
-          }
-
           return (
             <div
               key={t.id}
               onClick={() => handleSelectTable(t)}
-              className={`p-5 rounded-2xl border-2 cursor-pointer transition-all hover:scale-[1.03] flex flex-col justify-between h-44 ${cardBg}`}
+              className="group relative min-h-48 cursor-pointer overflow-hidden rounded-[1.75rem] border border-outline/10 bg-white/80 p-5 shadow-[0_10px_30px_rgba(27,28,26,0.05)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(27,28,26,0.08)]"
             >
-              <div className="space-y-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-headline font-bold text-base text-on-surface">Table {t.table_number}</h3>
-                    <p className="text-[10px] text-outline font-bold uppercase">{t.seats} seats</p>
-                  </div>
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase border ${
-                    t.current_status === 'available' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
-                    t.current_status === 'occupied' ? 'bg-primary-fixed text-on-primary-fixed-variant border-primary/10' :
-                    'bg-amber-100 text-amber-800 border-amber-200'
-                  }`}>
-                    {statusText}
-                  </span>
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/25 to-transparent" />
+              <div className="flex h-full flex-col justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-outline">Table</p>
+                  <h3 className="mt-2 text-3xl font-black tracking-tight text-on-surface">{t.table_number}</h3>
+                  <p className="mt-2 text-sm font-semibold uppercase tracking-[0.16em] text-secondary">
+                    {t.seats} seats
+                  </p>
                 </div>
 
-                {t.waiter_name && (
-                  <p className="text-[11px] text-secondary flex items-center gap-1">
-                    <User size={12} className="text-primary" />
-                    Server: <strong>{t.waiter_name}</strong>
-                  </p>
-                )}
-              </div>
-
-              <div className="flex justify-between items-center border-t border-outline/5 pt-3">
-                <span className="text-[10px] text-primary font-bold uppercase tracking-wider">
-                  {t.current_status === 'available' ? 'Start Order' : 'Edit Cart'}
-                </span>
-                
-                {(t.current_status === 'reserved' || t.current_status === 'occupied') && (
-                  <button
-                    onClick={(e) => handleRelease(t.id, e)}
-                    className="p-1.5 text-secondary hover:text-error hover:bg-error/5 rounded transition-all"
-                    title="Free Table"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
+                <div className="flex items-center justify-between border-t border-outline/10 pt-4">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
+                    Start cashier order
+                  </span>
+                  <ArrowRight size={15} className="text-primary transition-transform duration-300 group-hover:translate-x-1" />
+                </div>
               </div>
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );
