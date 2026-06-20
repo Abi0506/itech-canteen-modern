@@ -616,10 +616,16 @@ async def pay_order(order_id: int, payload: dict, db: Session = Depends(get_db))
     if order.table_id:
         table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
         if table:
-            table.current_status = "reserved"
-            table.current_order_id = order.id
+            table.current_status = "available"
+            table.current_order_id = None
+            table.current_waiter_id = None
 
     db.commit()
     db.refresh(order)
-    await manager.broadcast_all({"event": "payment_completed", "table_id": order.table_id, "order_id": order.id})
+    await manager.broadcast_all({
+        "event": "payment_completed",
+        "table_id": order.table_id,
+        "order_id": order.id,
+        "table_status": "available",
+    })
     return _serialize_order(db, order)

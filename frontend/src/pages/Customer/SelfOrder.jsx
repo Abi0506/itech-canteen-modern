@@ -12,6 +12,8 @@ import {
   ShoppingBag,
   UserPlus,
   X,
+  CreditCard,
+  Smartphone,
 } from 'lucide-react';
 import api from '../../utils/api';
 
@@ -31,6 +33,7 @@ const SelfOrder = () => {
   const [cart, setCart] = useState({});
   const [confirmedQuantities, setConfirmedQuantities] = useState({});
   const [signup, setSignup] = useState({ name: '', phone_no: '', email: '' });
+  const [paymentMethod, setPaymentMethod] = useState('upi');
   const [sessionPin, setSessionPin] = useState(
     () => sessionStorage.getItem(`self-order-pin-${tableId}`) || '',
   );
@@ -195,7 +198,7 @@ const SelfOrder = () => {
       });
       setOrder(response.data);
       hydrateOrder(response.data);
-      setScreen('confirmed');
+      setScreen('payment');
       setMessage(
         hasConfirmedItems
           ? 'Your add-on items were confirmed and sent to the kitchen.'
@@ -204,6 +207,25 @@ const SelfOrder = () => {
       await loadPublicMenu();
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not confirm the order.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const payForOrder = async () => {
+    if (!order?.id) return;
+    setBusy(true);
+    setError('');
+    try {
+      const response = await api.post(`/self-order/orders/${order.id}/pay`, {
+        payment_method: paymentMethod,
+      });
+      setOrder(response.data);
+      setScreen('confirmed');
+      setMessage('Payment completed successfully. Your bill is settled.');
+      await loadPublicMenu();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Could not complete payment.');
     } finally {
       setBusy(false);
     }
@@ -331,7 +353,7 @@ const SelfOrder = () => {
           </div>
         )}
 
-        {screen !== 'review' && screen !== 'confirmed' && (
+        {screen !== 'review' && screen !== 'payment' && screen !== 'confirmed' && (
           <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
             <aside className="hidden lg:block">
               <div className="sticky top-28 rounded-3xl border border-outline/10 bg-surface-container-low p-4">
@@ -546,6 +568,75 @@ const SelfOrder = () => {
           </main>
         )}
 
+        {screen === 'payment' && (
+          <main className="mx-auto max-w-2xl py-8">
+            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10">
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
+                Secure payment
+              </p>
+              <h2 className="mt-2 font-headline text-3xl font-black">Choose a payment method</h2>
+              <p className="mt-3 text-sm text-secondary">
+                Your order is already sent to the kitchen. Please complete payment to close the table bill.
+              </p>
+
+              <div className="mt-6 rounded-2xl border border-outline/10 bg-surface-container-lowest p-5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-secondary">Order</span>
+                  <span className="font-bold">{order?.bill_number}</span>
+                </div>
+                <div className="mt-2 flex justify-between text-sm">
+                  <span className="text-secondary">Total due</span>
+                  <span className="font-black text-primary">{formatMoney(order?.total_amount)}</span>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-3 md:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('upi')}
+                  className={`rounded-2xl border p-4 text-left transition-colors ${
+                    paymentMethod === 'upi'
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-outline/10 bg-surface-container-lowest text-secondary'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Smartphone size={18} />
+                    <span className="font-bold">UPI</span>
+                  </div>
+                  <p className="mt-2 text-xs">Use any UPI app to complete the payment.</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('card')}
+                  className={`rounded-2xl border p-4 text-left transition-colors ${
+                    paymentMethod === 'card'
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-outline/10 bg-surface-container-lowest text-secondary'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <CreditCard size={18} />
+                    <span className="font-bold">Card</span>
+                  </div>
+                  <p className="mt-2 text-xs">Tap or swipe your card at the counter.</p>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={payForOrder}
+                disabled={busy}
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 font-black text-on-primary disabled:opacity-50"
+              >
+                <CheckCircle2 size={18} />
+                {busy ? 'Processing payment...' : 'Pay now'}
+              </button>
+            </div>
+          </main>
+        )}
+
         {screen === 'confirmed' && (
           <main className="mx-auto max-w-2xl py-8 text-center">
             <div className="rounded-3xl border border-emerald-500/20 bg-surface-container-low p-7 md:p-10">
@@ -553,12 +644,12 @@ const SelfOrder = () => {
                 <CheckCircle2 size={34} />
               </div>
               <p className="mt-5 text-[10px] font-black uppercase tracking-[0.28em] text-emerald-700">
-                Sent to kitchen
+                Table released
               </p>
-              <h2 className="mt-2 font-headline text-3xl font-black">Order confirmed</h2>
+              <h2 className="mt-2 font-headline text-3xl font-black">Payment complete</h2>
               <p className="mt-3 text-sm text-secondary">
-                Your confirmed items are locked and inventory has been updated. Payment is not
-                required yet; your table bill stays open.
+                Your payment is complete, the bill is closed, and the table has been released
+                back to available status.
               </p>
               <div className="mt-6 rounded-2xl bg-surface-container-lowest p-5 text-left">
                 <div className="flex justify-between text-sm">
@@ -576,17 +667,10 @@ const SelfOrder = () => {
                   <span className="font-bold">{session?.session_pin}</span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setMessage('');
-                  setScreen('order');
-                }}
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 font-black text-on-primary"
-              >
-                <Plus size={18} />
-                Add more items
-              </button>
+              <div className="mt-6 rounded-2xl border border-outline/10 bg-primary/5 px-4 py-3 text-sm text-secondary">
+                You can close this screen now. If you need another order, a new table session will
+                need to be started again from the QR flow.
+              </div>
             </div>
           </main>
         )}
