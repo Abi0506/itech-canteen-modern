@@ -732,7 +732,7 @@ def assign_order_customer(order_id: int, payload: Dict[str, Any], db: Session = 
 
     db.commit()
     db.refresh(order)
-    return {"success": True, "order_id": order.id, "customer_id": order.customer_id}
+    return _serialize_order(order, db)
 
 @router.get("/tables/{table_id}/orders", response_model=List[OrderResponse], dependencies=[cashier_dependency])
 def get_table_orders(table_id: int, db: Session = Depends(get_db)):
@@ -930,12 +930,22 @@ async def verify_razorpay_payment(
 def search_customer(q: str, db: Session = Depends(get_db)):
     query = q.strip()
     normalized_phone = _normalize_phone(query)
+    
+    customers = []
+    staff_users = []
+    
     if not query:
-        customers = []
-    elif query.isdigit() or normalized_phone == query:
+        return []
+        
+    if query.isdigit() or normalized_phone == query:
         customers = (
             db.query(Customer)
             .filter(Customer.is_guest == False, Customer.mobile_number.like(f"%{normalized_phone}%"))  # noqa: E712
+            .all()
+        )
+        staff_users = (
+            db.query(User)
+            .filter(User.deleted_at == None, User.mobile_number.like(f"%{normalized_phone}%"))
             .all()
         )
     elif normalized_phone:
@@ -950,15 +960,54 @@ def search_customer(q: str, db: Session = Depends(get_db)):
             )
             .all()
         )
+        staff_users = (
+            db.query(User)
+            .filter(
+                User.deleted_at == None,
+                or_(
+                    User.name.like(f"%{query}%"),
+                    User.mobile_number.like(f"%{normalized_phone}%"),
+                ),
+            )
+            .all()
+        )
     else:
         customers = (
             db.query(Customer)
             .filter(Customer.is_guest == False, Customer.name.like(f"%{query}%"))  # noqa: E712
             .all()
         )
+        staff_users = (
+            db.query(User)
+            .filter(User.deleted_at == None, User.name.like(f"%{query}%"))
+            .all()
+        )
+
+    # Auto-create customer profile for matching staff users
+    staff_customers = []
+    if staff_users:
+        for u in staff_users:
+            c = db.query(Customer).filter(Customer.mobile_number == u.mobile_number).first()
+            if not c:
+                c = Customer(
+                    name=u.name,
+                    mobile_number=u.mobile_number,
+                    email=u.email,
+                    is_guest=False
+                )
+                db.add(c)
+                db.flush()
+            staff_customers.append(c)
+        db.commit()
+
+    # Merge lists using dict to prevent duplicates
+    merged = {c.id: c for c in customers}
+    for sc in staff_customers:
+        merged[sc.id] = sc
+
     return [
         {"id": c.id, "name": c.name, "mobile_number": c.mobile_number, "email": c.email, "is_guest": bool(c.is_guest)}
-        for c in customers
+        for c in merged.values()
     ]
 
 

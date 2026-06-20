@@ -48,6 +48,37 @@ const OrderScreen = () => {
     }
   };
 
+  const ensureActiveOrder = async () => {
+    if (currentOrder?.id) {
+      return currentOrder;
+    }
+
+    const res = await api.post('/cashier/orders', {
+      source: 'cashier',
+      table_id: Number(tableId),
+      items: [],
+    });
+    const nextOrder = res.data || null;
+    setCurrentOrder(nextOrder);
+    if (nextOrder?.id) {
+      await loadBillSummary(nextOrder.id);
+    }
+    return nextOrder;
+  };
+
+  const resetForNextCustomer = () => {
+    setCart([]);
+    setReceivedCash('');
+    setBillSummary(null);
+    setCustomerSearchText('');
+    setCustomerSearchResults([]);
+    setNewCustName('');
+    setNewCustPhone('');
+    setNewCustEmail('');
+    setIsRegisteringNewCust(false);
+    setShowCustomerModal(false);
+  };
+
   const loadData = async () => {
     setError('');
     try {
@@ -57,19 +88,24 @@ const OrderScreen = () => {
         api.get(`/cashier/tables/${tableId}/current-order`),
       ]);
 
-      if (productsRes.status === 'fulfilled') {
-        setProducts(productsRes.value.data || []);
-      } else {
-        throw productsRes.reason;
+      setProducts(productsRes.status === 'fulfilled' ? (productsRes.value.data || []) : []);
+      setCategories(categoriesRes.status === 'fulfilled' ? (categoriesRes.value.data || []) : []);
+
+      if (orderRes.status === 'rejected') {
+        const orderErr = orderRes.reason;
+        if (orderErr.response?.status === 404) {
+          setCurrentOrder(null);
+          setBillSummary(null);
+          return;
+        }
+
+        setError(orderErr.response?.data?.detail || 'Failed to load table order.');
+        setCurrentOrder(null);
+        setBillSummary(null);
+        return;
       }
 
-      if (categoriesRes.status === 'fulfilled') {
-        setCategories(categoriesRes.value.data || []);
-      } else {
-        throw categoriesRes.reason;
-      }
-
-      const orderData = orderRes.status === 'fulfilled' ? (orderRes.value.data || null) : null;
+      const orderData = orderRes.value.data || null;
       setCurrentOrder(orderData);
       if (orderData?.id) {
         await loadBillSummary(orderData.id);
@@ -97,22 +133,31 @@ const OrderScreen = () => {
       const res = await api.get(`/cashier/customers/search`, { params: { q: text } });
       setCustomerSearchResults(res.data || []);
     } catch (err) {
-      console.error(err);
+      setCustomerSearchResults([]);
+      setError(err.response?.data?.detail || 'Failed to search customers.');
     }
   };
 
   const handleAssignCustomer = async (customerId) => {
-    if (!currentOrder?.id) return;
     setBusy(true);
     setError('');
     setMessage('');
     try {
-      await api.patch(`/cashier/orders/${currentOrder.id}/customer`, { customer_id: customerId });
+      const order = await ensureActiveOrder();
+      if (!order?.id) {
+        setError('No active bill found for this table. Please refresh and try again.');
+        return;
+      }
+
+      const res = await api.patch(`/cashier/orders/${order.id}/customer`, { customer_id: customerId });
+      setCurrentOrder(res.data || null);
+      if (res.data?.id) {
+        await loadBillSummary(res.data.id);
+      }
       setMessage('Customer assigned to this order successfully.');
       setShowCustomerModal(false);
       setCustomerSearchText('');
       setCustomerSearchResults([]);
-      await loadData();
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to assign customer.');
     } finally {
@@ -130,22 +175,40 @@ const OrderScreen = () => {
     setError('');
     setMessage('');
     try {
-      const res = await api.post('/cashier/customers/resolve', {
+      const order = await ensureActiveOrder();
+      if (!order?.id) {
+        setError('No active bill found for this table. Please refresh and try again.');
+        return;
+      }
+
+      // 1. Register the customer profile
+      const regRes = await api.post('/cashier/customers', {
         name: newCustName.trim(),
         mobile_number: newCustPhone.trim(),
-        email: newCustEmail.trim()
+        email: newCustEmail.trim(),
       });
-      const customerId = res.data.id;
-      await api.patch(`/cashier/orders/${currentOrder.id}/customer`, { customer_id: customerId });
+      const newCustomer = regRes.data;
+      if (!newCustomer?.id) {
+        throw new Error('Failed to register customer profile: Invalid response from server.');
+      }
+
+      // 2. Assign the customer ID to the order
+      const assignRes = await api.patch(`/cashier/orders/${order.id}/customer`, {
+        customer_id: newCustomer.id,
+      });
+
+      setCurrentOrder(assignRes.data || null);
+      if (assignRes.data?.id) {
+        await loadBillSummary(assignRes.data.id);
+      }
       setMessage('New customer registered and assigned successfully.');
       setShowCustomerModal(false);
       setNewCustName('');
       setNewCustPhone('');
       setNewCustEmail('');
       setIsRegisteringNewCust(false);
-      await loadData();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to register customer.');
+      setError(err.response?.data?.detail || err.message || 'Failed to register customer.');
     } finally {
       setBusy(false);
     }
@@ -157,14 +220,44 @@ const OrderScreen = () => {
     setError('');
     setMessage('');
     try {
-      await api.patch(`/cashier/orders/${currentOrder.id}/customer`, { customer_id: null });
+      const res = await api.patch(`/cashier/orders/${currentOrder.id}/customer`, { customer_id: null });
+      setCurrentOrder(res.data || null);
+      if (res.data?.id) {
+        await loadBillSummary(res.data.id);
+      }
       setMessage('Customer profile unlinked from order.');
-      await loadData();
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to remove customer.');
     } finally {
       setBusy(false);
     }
+  };
+
+  const openCustomerModal = () => {
+    setError('');
+    setIsRegisteringNewCust(false);
+    if (currentOrder?.id) {
+      setShowCustomerModal(true);
+      return;
+    }
+
+    ensureActiveOrder()
+      .then((order) => {
+        if (order?.id) {
+          setShowCustomerModal(true);
+          return;
+        }
+        setError('No active bill found for this table. Please wait for the order to load.');
+      })
+      .catch((err) => {
+        setError(err.response?.data?.detail || 'Failed to start a bill for this table.');
+      });
+  };
+
+  const startRegisteringCustomer = () => {
+    setError('');
+    setIsRegisteringNewCust(true);
+    setNewCustPhone((prev) => prev || customerSearchText.trim());
   };
 
   const currentItems = useMemo(() => groupOrderItems(currentOrder?.items || []), [currentOrder]);
@@ -267,10 +360,6 @@ const OrderScreen = () => {
   });
 
   const handlePayBill = async () => {
-    if (!currentOrder?.id) {
-      setError('No active bill found for this table.');
-      return;
-    }
     if (!selectedCustomer) {
       setError('Select or register a customer with phone number before payment.');
       setShowCustomerModal(true);
@@ -289,8 +378,14 @@ const OrderScreen = () => {
     setError('');
     setMessage('');
     try {
+      const order = currentOrder?.id ? currentOrder : await ensureActiveOrder();
+      if (!order?.id) {
+        setError('No active bill found for this table.');
+        return;
+      }
+
       if (cart.length > 0) {
-        await api.put(`/cashier/orders/${currentOrder.id}/items`, cart.map((item) => ({
+        await api.put(`/cashier/orders/${order.id}/items`, cart.map((item) => ({
           product_id: item.id,
           quantity: item.quantity,
         })));
@@ -301,7 +396,7 @@ const OrderScreen = () => {
         amount_received: paymentMethodId === 1 && receivedCash ? Number(receivedCash) : balanceDue,
       };
 
-      const res = await api.post(`/cashier/orders/${currentOrder.id}/pay-and-send`, paymentMethodPayload);
+      const res = await api.post(`/cashier/orders/${order.id}/pay-and-send`, paymentMethodPayload);
 
       if (paymentMethodId === 3 && res.data?.payment_provider === 'razorpay') {
         setCart([]);
@@ -323,14 +418,13 @@ const OrderScreen = () => {
           handler: async (response) => {
             setUpiBusy(true);
             try {
-              const verifyRes = await api.post(`/cashier/orders/${currentOrder.id}/razorpay/verify`, {
+              const verifyRes = await api.post(`/cashier/orders/${order.id}/razorpay/verify`, {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
               });
-              setMessage(`UPI payment recorded. Change due: Rs.${Number(verifyRes.data.change_due || 0).toFixed(2)}`);
-              setCart([]);
-              setReceivedCash('');
+              setMessage(`UPI payment recorded. Change due: Rs.${Number(verifyRes.data.change_due || 0).toFixed(2)}. Ready for the next customer.`);
+              resetForNextCustomer();
               await loadData();
             } catch (verifyErr) {
               setError(verifyErr.response?.data?.detail || 'Razorpay verification failed.');
@@ -355,12 +449,38 @@ const OrderScreen = () => {
         return;
       }
 
-      setMessage(`Payment recorded. Change due: Rs.${Number(res.data.change_due || 0).toFixed(2)}`);
-      setCart([]);
-      setReceivedCash('');
+      setMessage(`Payment recorded. Change due: Rs.${Number(res.data.change_due || 0).toFixed(2)}. Ready for the next customer.`);
+      resetForNextCustomer();
       await loadData();
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to complete payment.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSendToKitchen = async () => {
+    if (cart.length === 0) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const order = currentOrder?.id ? currentOrder : await ensureActiveOrder();
+      if (!order?.id) {
+        setError('No active bill found for this table.');
+        return;
+      }
+
+      await api.put(`/cashier/orders/${order.id}/items`, cart.map((item) => ({
+        product_id: item.id,
+        quantity: item.quantity,
+      })));
+      await api.post(`/cashier/orders/${order.id}/send-to-kitchen`);
+      setMessage('Items sent to the kitchen successfully.');
+      setCart([]);
+      await loadData();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to send items to kitchen.');
     } finally {
       setBusy(false);
     }
@@ -442,7 +562,7 @@ const OrderScreen = () => {
               )}
               <button
                 type="button"
-                onClick={() => setShowCustomerModal(true)}
+                onClick={openCustomerModal}
                 disabled={busy}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-on-primary shadow hover:bg-primary/95 disabled:opacity-50"
               >
@@ -511,65 +631,107 @@ const OrderScreen = () => {
             ))}
           </div>
 
-          <div className="rounded-2xl border border-outline/10 bg-surface-container-lowest p-3 space-y-2">
-            <div className="flex items-center justify-between text-xs font-semibold text-secondary">
-              <span>Selected items</span>
-              <span>{cart.length} item(s)</span>
-            </div>
-            {cart.length === 0 ? (
-              <p className="py-3 text-center text-xs text-outline">Selected items will appear here.</p>
-            ) : (
-              <div className="space-y-2">
+          </div>
+        </div>
+
+      <div className="w-full lg:w-[450px] bg-surface border-l border-outline/10 p-6 flex flex-col justify-between h-[calc(100vh-57px)] sticky top-[57px]">
+        <div className="space-y-5 overflow-y-auto flex-1 pr-1">
+          <div className="flex justify-between items-center border-b border-outline/5 pb-3">
+            <h3 className="font-headline font-bold text-base flex items-center gap-2 text-on-surface">
+              <ShoppingCart size={18} />
+              Bill Items
+            </h3>
+            <span className="text-xs font-semibold text-secondary">{orderLineItems.length} item(s)</span>
+          </div>
+
+            {orderLineItems.length === 0 && cart.length === 0 && (
+              <p className="text-xs text-outline italic text-center py-8">Ordered items will appear here.</p>
+            )}
+            
+            {orderLineItems.map((item) => (
+              <div key={item.id} className="grid grid-cols-[1fr_auto] gap-3 rounded-2xl border border-outline/10 bg-surface-container-lowest p-3 text-sm opacity-75">
+                <div>
+                  <span className="font-bold text-on-surface">{item.name}</span>
+                  <p className="text-[10px] text-secondary">
+                    Rs.{Number(item.unit_price).toFixed(2)} each (Sent to Kitchen)
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="font-bold text-on-surface">x{Number(item.quantity)}</span>
+                  <p className="text-[10px] font-semibold text-secondary">Rs.{Number(item.line_total).toFixed(2)}</p>
+                </div>
+              </div>
+            ))}
+
+            {cart.length > 0 && (
+              <div className="mt-4 border-t border-outline/10 pt-4 space-y-3">
+                <p className="text-[10px] font-bold uppercase text-primary tracking-wider">New Items (Not Sent)</p>
                 {cart.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-outline/10 bg-surface-container-low p-3 text-sm"
-                  >
+                  <div key={item.id} className="grid grid-cols-[1fr_auto] gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 text-sm">
                     <div>
-                      <p className="font-semibold text-on-surface">{item.name}</p>
-                      <p className="text-[10px] text-outline">Rs.{item.price.toFixed(2)} each</p>
+                      <span className="font-bold text-on-surface">{item.name}</span>
+                      <p className="text-[10px] text-secondary">Rs.{item.price.toFixed(2)} each</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateQty(item.id, -1)}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-outline/10 bg-surface-container text-sm font-bold"
-                      >
-                        -
-                      </button>
-                      <span className="min-w-5 text-center text-xs font-bold">{item.quantity}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateQty(item.id, 1)}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-outline/10 bg-surface-container text-sm font-bold"
-                      >
-                        +
-                      </button>
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateQty(item.id, -1)}
+                          className="flex h-6 w-6 items-center justify-center rounded border border-primary/20 bg-surface text-primary font-bold"
+                        >
+                          -
+                        </button>
+                        <span className="min-w-4 text-center text-xs font-bold">{item.quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateQty(item.id, 1)}
+                          className="flex h-6 w-6 items-center justify-center rounded border border-primary/20 bg-surface text-primary font-bold"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <p className="text-[10px] font-bold text-primary">Rs.{(item.price * item.quantity).toFixed(2)}</p>
                     </div>
                   </div>
                 ))}
+                <button
+                  onClick={handleSendToKitchen}
+                  disabled={busy}
+                  className="w-full py-2 bg-surface-container-high border border-outline/20 text-on-surface font-semibold rounded-xl text-xs hover:bg-surface-container-highest transition-all"
+                >
+                  Send New Items to Kitchen
+                </button>
               </div>
             )}
 
-            <div className="mt-3 rounded-xl border border-outline/10 bg-surface-container-low p-3 text-xs space-y-1">
-              <div className="flex justify-between text-secondary">
-                <span>Subtotal</span>
-                <span>Rs.{cartSubtotal.toFixed(2)}</span>
+          <div className="rounded-2xl border border-outline/10 bg-surface-container-low p-3 text-xs space-y-2">
+            <div className="flex justify-between text-secondary">
+              <span>Subtotal</span>
+              <span>Rs.{cumulativeSubtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-secondary">
+              <span>Tax 5%</span>
+              <span>Rs.{cumulativeTax.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between border-t border-outline/5 pt-2 text-sm font-bold text-on-surface">
+              <span>Total amount</span>
+              <span>Rs.{cumulativeTotal.toFixed(2)}</span>
+            </div>
+            {totalPaid > 0 && (
+              <div className="flex justify-between text-emerald-700">
+                <span>Paid</span>
+                <span>Rs.{totalPaid.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-secondary">
-                <span>Tax 5%</span>
-                <span>Rs.{cartTax.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between border-t border-outline/5 pt-2 text-sm font-bold text-on-surface">
-                <span>Total</span>
-                <span>Rs.{cartTotal.toFixed(2)}</span>
-              </div>
+            )}
+            <div className="flex justify-between text-primary font-bold">
+              <span>Balance due</span>
+              <span>Rs.{balanceDue.toFixed(2)}</span>
             </div>
           </div>
-
+          
           <div className="rounded-2xl border border-outline/10 bg-surface-container-low p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-headline text-base font-bold text-on-surface">Payment</h3>
+              <h3 className="font-headline text-sm font-bold text-on-surface">Payment</h3>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-secondary">
                 Payable Rs.{balanceDue.toFixed(2)}
               </span>
@@ -595,7 +757,7 @@ const OrderScreen = () => {
                 <input
                   type="number"
                   placeholder="e.g. 500"
-                  className="w-full p-2.5 bg-surface-container-low border border-outline/10 rounded-lg text-xs"
+                  className="w-full p-2.5 bg-surface-container-lowest border border-outline/10 rounded-lg text-xs"
                   value={receivedCash}
                   onChange={(e) => setReceivedCash(e.target.value)}
                 />
@@ -610,65 +772,6 @@ const OrderScreen = () => {
               <CreditCard size={14} />
               {paymentMethodId === 3 ? 'Pay with Razorpay UPI' : `Pay Bill (Rs.${balanceDue.toFixed(2)})`}
             </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="w-full lg:w-96 bg-surface border-l border-outline/10 p-6 flex flex-col justify-between h-[calc(100vh-57px)] sticky top-[57px]">
-        <div className="space-y-5 overflow-y-auto flex-1 pr-1">
-          <div className="flex justify-between items-center border-b border-outline/5 pb-3">
-            <h3 className="font-headline font-bold text-base flex items-center gap-2 text-on-surface">
-              <ShoppingCart size={18} />
-              Bill Items
-            </h3>
-            <span className="text-xs font-semibold text-secondary">{cumulativeItems.length} item(s)</span>
-          </div>
-
-          <div className="space-y-3">
-            {cumulativeItems.length === 0 ? (
-              <p className="text-xs text-outline italic text-center py-8">Ordered items will appear here.</p>
-            ) : (
-              cumulativeItems.map((item) => (
-                <div key={item.key} className="grid grid-cols-[1fr_auto] gap-3 rounded-2xl border border-outline/10 bg-surface-container-lowest p-3 text-sm">
-                  <div>
-                    <span className="font-bold text-on-surface">{item.name}</span>
-                    <p className="text-[10px] text-secondary">
-                      Rs.{Number(item.unit_price).toFixed(2)} each
-                      {item.hasPendingCart ? ' | pending cart' : ''}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-bold text-on-surface">x{Number(item.quantity)}</span>
-                    <p className="text-[10px] font-semibold text-secondary">Rs.{Number(item.line_total).toFixed(2)}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-outline/10 bg-surface-container-low p-3 text-xs space-y-2">
-            <div className="flex justify-between text-secondary">
-              <span>Subtotal</span>
-              <span>Rs.{cumulativeSubtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-secondary">
-              <span>Tax 5%</span>
-              <span>Rs.{cumulativeTax.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between border-t border-outline/5 pt-2 text-sm font-bold text-on-surface">
-              <span>Total amount</span>
-              <span>Rs.{cumulativeTotal.toFixed(2)}</span>
-            </div>
-            {totalPaid > 0 && (
-              <div className="flex justify-between text-emerald-700">
-                <span>Paid</span>
-                <span>Rs.{totalPaid.toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-primary font-bold">
-              <span>Balance due</span>
-              <span>Rs.{balanceDue.toFixed(2)}</span>
-            </div>
           </div>
         </div>
 
@@ -752,8 +855,10 @@ const OrderScreen = () => {
                     customerSearchResults.map((c) => (
                       <button
                         key={c.id}
+                        type="button"
+                        disabled={busy}
                         onClick={() => handleAssignCustomer(c.id)}
-                        className="w-full text-left p-3 rounded-xl bg-surface-container-low border border-outline/5 hover:border-primary/30 transition-all flex justify-between items-center"
+                        className="w-full text-left p-3 rounded-xl bg-surface-container-low border border-outline/5 hover:border-primary/30 transition-all flex justify-between items-center disabled:opacity-50"
                       >
                         <div>
                           <p className="font-bold text-xs text-on-surface">{c.name}</p>
@@ -771,7 +876,7 @@ const OrderScreen = () => {
 
                 <div className="border-t pt-4">
                   <button
-                    onClick={() => setIsRegisteringNewCust(true)}
+                    onClick={startRegisteringCustomer}
                     className="w-full py-2.5 bg-primary/10 border border-primary/20 text-primary hover:bg-primary/15 text-xs font-bold rounded-xl transition-all"
                   >
                     Register New Customer Profile

@@ -60,7 +60,7 @@ const Tables = () => {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {tables.map((t) => {
-          const isOccupied = t.current_status === 'occupied';
+          const isOccupied = t.current_status !== 'available';
           return (
             <div
               key={t.id}

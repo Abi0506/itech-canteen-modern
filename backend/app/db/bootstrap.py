@@ -295,7 +295,7 @@ def _seed_demo_data():
         else:
             floor.display_order = 1
 
-        for idx, table_number in enumerate(["T1", "T2", "T3", "T4"], start=1):
+        for idx, table_number in enumerate(["1", "2", "3", "4"], start=1):
             table = db.query(TableMaster).filter(TableMaster.floor_id == floor.id, TableMaster.table_number == table_number).first()
             if table is None:
                 db.add(
