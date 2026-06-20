@@ -24,6 +24,7 @@ from app.db.models import (
 )
 from app.db.session import get_db
 from app.routes.websockets import manager
+from app.services.email import send_table_release_email
 
 router = APIRouter(prefix="/self-order", tags=["self_order"])
 
@@ -128,6 +129,23 @@ def _serialize_order(db: Session, order: Order | None) -> dict | None:
         "discount_amount": float(order.discount_total or 0),
         "total_amount": float(order.total or 0),
     }
+
+
+def _serialize_order_items(order: Order) -> list[dict]:
+    items = []
+    for item in order.items:
+        items.append(
+            {
+                "id": item.id,
+                "product_id": item.product_id,
+                "name": item.product.name if item.product else f"Product {item.product_id}",
+                "quantity": float(item.quantity),
+                "rate": float(item.unit_price),
+                "total": float(item.line_total),
+                "status": item.kitchen_status,
+            }
+        )
+    return items
 
 
 def _recalculate_order(order: Order) -> None:
@@ -608,17 +626,6 @@ async def pay_order(order_id: int, payload: dict, db: Session = Depends(get_db))
     )
 
     order.status = "paid"
-    if order.table_session_id:
-        session = db.query(TableSession).filter(TableSession.id == order.table_session_id).first()
-        if session:
-            session.status = "closed"
-            session.closed_at = datetime.utcnow()
-    if order.table_id:
-        table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
-        if table:
-            table.current_status = "available"
-            table.current_order_id = None
-            table.current_waiter_id = None
 
     db.commit()
     db.refresh(order)
@@ -629,3 +636,88 @@ async def pay_order(order_id: int, payload: dict, db: Session = Depends(get_db))
         "table_status": "available",
     })
     return _serialize_order(db, order)
+
+
+@router.get("/tables/{table_id}/summary")
+def get_table_summary(table_id: int, db: Session = Depends(get_db)):
+    table = _get_table(db, table_id)
+    session = _get_active_session(db, table.id)
+
+    orders = []
+    if session:
+        orders = (
+            db.query(Order)
+            .filter(Order.table_session_id == session.id)
+            .order_by(Order.created_at.asc(), Order.id.asc())
+            .all()
+        )
+
+    cumulative_subtotal = sum((Decimal(str(order.subtotal or 0)) for order in orders), Decimal("0.00"))
+    cumulative_tax = sum((Decimal(str(order.tax_total or 0)) for order in orders), Decimal("0.00"))
+    cumulative_discount = sum((Decimal(str(order.discount_total or 0)) for order in orders), Decimal("0.00"))
+    cumulative_total = sum((Decimal(str(order.total or 0)) for order in orders), Decimal("0.00"))
+
+    return {
+        "table": _serialize_table(table),
+        "session": _serialize_session(session),
+        "orders": [
+            {
+                "id": order.id,
+                "order_number": order.order_number,
+                "status": order.status,
+                "subtotal_amount": float(order.subtotal or 0),
+                "tax_amount": float(order.tax_total or 0),
+                "discount_amount": float(order.discount_total or 0),
+                "total_amount": float(order.total or 0),
+                "items": _serialize_order_items(order),
+            }
+            for order in orders
+        ],
+        "subtotal_amount": float(cumulative_subtotal),
+        "tax_amount": float(cumulative_tax),
+        "discount_amount": float(cumulative_discount),
+        "total_amount": float(cumulative_total),
+    }
+
+
+@router.post("/tables/{table_id}/unlink")
+async def unlink_table(table_id: int, payload: dict, db: Session = Depends(get_db)):
+    table = _get_table(db, table_id)
+    session = _get_active_session(db, table.id)
+    if not session:
+        raise HTTPException(status_code=400, detail="No active table session found")
+
+    pin = str(payload.get("session_pin", "")).strip()
+    if not pin or pin != str(session.pin_code or "").strip():
+        raise HTTPException(status_code=401, detail="Invalid table PIN")
+
+    orders = (
+        db.query(Order)
+        .filter(Order.table_session_id == session.id)
+        .order_by(Order.created_at.asc(), Order.id.asc())
+        .all()
+    )
+    cumulative_total = sum((Decimal(str(order.total or 0)) for order in orders), Decimal("0.00"))
+
+    try:
+        send_table_release_email(
+            table_number=table.table_number,
+            table_id=table.id,
+            orders=[
+                {"order_number": order.order_number, "status": order.status, "total": order.total}
+                for order in orders
+            ],
+            grand_total=cumulative_total,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Email could not be sent: {exc}") from exc
+
+    session.status = "closed"
+    session.closed_at = datetime.utcnow()
+    table.current_status = "available"
+    table.current_order_id = None
+    table.current_waiter_id = None
+    db.commit()
+
+    await manager.broadcast_all({"event": "table_released", "table_id": table.id})
+    return {"success": True, "message": "Table unlinked and released successfully"}

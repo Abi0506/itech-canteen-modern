@@ -10,10 +10,11 @@ from typing import List, Optional, Dict, Any
 
 from app.core.config import settings
 from app.db.session import get_db
-from app.db.models import User, TableMaster, Order, OrderItem, Product, InventoryItem, StockMovement, Customer, PosSession, Payment, PaymentMethod
+from app.db.models import User, TableMaster, Order, OrderItem, Product, InventoryItem, StockMovement, Customer, PosSession, Payment, PaymentMethod, TableSession
 from app.models.schemas import OrderCreate, OrderResponse, CustomerSignup, CustomerResolve, CustomerResponse, OrderItemCreate
 from app.routes.auth import require_role
 from app.routes.websockets import manager
+from app.services.email import send_table_release_email
 
 router = APIRouter(prefix="/cashier", tags=["cashier"])
 
@@ -35,7 +36,14 @@ def _generate_customer_name(phone: str) -> str:
     return f"Customer {suffix}" if suffix else "Cashier Customer"
 
 
-def _upsert_customer(db: Session, *, name: Optional[str], mobile_number: str, email: Optional[str] = None) -> Customer:
+def _upsert_customer(
+    db: Session,
+    *,
+    name: Optional[str],
+    mobile_number: str,
+    email: Optional[str] = None,
+    require_complete_profile: bool = False,
+) -> Customer:
     phone = _normalize_phone(mobile_number)
     if not _is_valid_phone(phone):
         raise HTTPException(status_code=400, detail="Please enter a valid phone number (10-15 digits).")
@@ -64,12 +72,17 @@ def _upsert_customer(db: Session, *, name: Optional[str], mobile_number: str, em
             db.refresh(existing)
         return existing
 
-    cleaned_name = name.strip() if name and name.strip() else _generate_customer_name(phone)
+    cleaned_name = name.strip() if name and name.strip() else None
+    cleaned_email = email.strip() if email and email.strip() else None
+    if require_complete_profile and (not cleaned_name or not cleaned_email):
+        raise HTTPException(status_code=400, detail="Name, phone number, and email are required to add a new customer.")
+
+    cleaned_name = cleaned_name or _generate_customer_name(phone)
 
     new_customer = Customer(
         name=cleaned_name,
         mobile_number=phone,
-        email=email,
+        email=cleaned_email,
         is_guest=False,
     )
     db.add(new_customer)
@@ -159,6 +172,7 @@ def _serialize_order(order: Order, db: Session) -> dict[str, Any]:
                 "name": customer_row.name,
                 "mobile_number": customer_row.mobile_number,
                 "email": customer_row.email,
+                "is_guest": bool(customer_row.is_guest),
             }
 
     return {
@@ -177,6 +191,23 @@ def _serialize_order(order: Order, db: Session) -> dict[str, Any]:
         "created_at": order.created_at,
         "updated_at": order.updated_at,
         "items": [_serialize_order_item(item) for item in order.items],
+    }
+
+
+def _serialize_payment(payment: Payment, db: Session) -> dict[str, Any]:
+    method = db.query(PaymentMethod).filter(PaymentMethod.id == payment.payment_method_id).first()
+    return {
+        "id": payment.id,
+        "order_id": payment.order_id,
+        "payment_method_id": payment.payment_method_id,
+        "payment_method_type": method.type if method else None,
+        "amount": float(payment.amount or 0),
+        "amount_received": float(payment.amount_received or 0) if payment.amount_received is not None else None,
+        "change_due": float(payment.change_due or 0) if payment.change_due is not None else None,
+        "reference_code": payment.reference_code,
+        "status": payment.status,
+        "received_by": payment.received_by,
+        "created_at": payment.created_at,
     }
 
 
@@ -314,7 +345,11 @@ def _finalize_order_payment(
     current_user: User,
 ) -> dict[str, Any]:
     if not order.customer_id:
-        order.customer_id = _get_or_create_walk_in_customer_id(db)
+        raise HTTPException(status_code=400, detail="Select or register a customer before payment.")
+
+    customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
+    if not customer or customer.is_guest:
+        raise HTTPException(status_code=400, detail="Select or register a customer before payment.")
 
     method = db.query(PaymentMethod).filter(PaymentMethod.id == payment_method_id).first()
     if not method or not method.is_enabled:
@@ -345,9 +380,9 @@ def _finalize_order_payment(
     if order.table_id:
         table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
         if table:
-            table.current_status = "available"
-            table.current_waiter_id = None
-            table.current_order_id = None
+            table.current_status = "reserved"
+            table.current_waiter_id = current_user.id if current_user else table.current_waiter_id
+            table.current_order_id = order.id
 
     db.commit()
     db.refresh(order)
@@ -363,7 +398,7 @@ def _finalize_order_payment(
         manager.broadcast_sync({
             "event": "table_status_changed",
             "table_id": order.table_id,
-            "status": "available",
+            "status": "reserved",
         })
 
     return {
@@ -380,6 +415,12 @@ def _create_razorpay_checkout_order(
     order: Order,
     current_user: User,
 ) -> dict[str, Any]:
+    if not order.customer_id:
+        raise HTTPException(status_code=400, detail="Select or register a customer before payment.")
+    customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
+    if not customer or customer.is_guest:
+        raise HTTPException(status_code=400, detail="Select or register a customer before payment.")
+
     method = _get_payment_method_by_type(db, "upi")
     client = _get_razorpay_client()
 
@@ -453,10 +494,56 @@ def release_table(table_id: int, db: Session = Depends(get_db)):
     active_orders = _get_active_table_orders(db, table_id)
     if active_orders:
         raise HTTPException(status_code=400, detail="Settle all drafts for this table before releasing it.")
+
+    table_session = (
+        db.query(TableSession)
+        .filter(TableSession.table_id == table_id, TableSession.status == "active")
+        .order_by(TableSession.opened_at.desc())
+        .first()
+    )
+
+    order_scope = []
+    if table_session:
+        order_scope = (
+            db.query(Order)
+            .filter(Order.table_session_id == table_session.id)
+            .order_by(Order.created_at.asc(), Order.id.asc())
+            .all()
+        )
+    elif table.current_order_id:
+        order_scope = (
+            db.query(Order)
+            .filter(Order.id == table.current_order_id)
+            .order_by(Order.created_at.asc(), Order.id.asc())
+            .all()
+        )
+    else:
+        order_scope = (
+            db.query(Order)
+            .filter(Order.table_id == table_id)
+            .order_by(Order.created_at.asc(), Order.id.asc())
+            .all()
+        )
+    all_orders = order_scope
+    cumulative_total = sum((Decimal(str(order.total or 0)) for order in all_orders), Decimal("0.00"))
+
+    email_error = None
+    try:
+        send_table_release_email(
+            table_number=table.table_number,
+            table_id=table.id,
+            orders=[{"order_number": order.order_number, "status": order.status, "total": order.total} for order in all_orders],
+            grand_total=cumulative_total,
+        )
+    except Exception as exc:
+        email_error = str(exc)
         
     table.current_status = 'available'
     table.current_waiter_id = None
     table.current_order_id = None
+    if table_session:
+        table_session.status = "closed"
+        table_session.closed_at = datetime.utcnow()
     db.commit()
     
     # Broadcast to websocket
@@ -465,7 +552,10 @@ def release_table(table_id: int, db: Session = Depends(get_db)):
         "table_id": table_id
     })
     
-    return {"success": True, "message": "Table released successfully"}
+    response = {"success": True, "message": "Table released successfully"}
+    if email_error:
+        response["email_warning"] = email_error
+    return response
 
 @router.get("/orders", response_model=List[OrderResponse], dependencies=[cashier_dependency])
 def get_cashier_orders(db: Session = Depends(get_db)):
@@ -649,31 +739,95 @@ def get_table_orders(table_id: int, db: Session = Depends(get_db)):
     return _get_active_table_orders(db, table_id)
 
 
-@router.get("/tables/{table_id}/current-order", dependencies=[cashier_dependency])
-def get_current_table_order(table_id: int, db: Session = Depends(get_db)):
+@router.get("/tables/{table_id}/current-order")
+def get_current_table_order(
+    table_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["cashier", "superadmin"])),
+):
     table = db.query(TableMaster).filter(TableMaster.id == table_id).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
 
     order = None
     if table.current_order_id:
-        order = db.query(Order).filter(
-            Order.id == table.current_order_id,
-            Order.status.in_(["draft", "sent_to_kitchen"]),
-        ).first()
+        order = db.query(Order).filter(Order.id == table.current_order_id).first()
     if order is None:
         order = (
             db.query(Order)
-            .filter(Order.table_id == table_id, Order.status.in_(["draft", "sent_to_kitchen"]))
+            .filter(Order.table_id == table_id, Order.status.in_(["draft", "sent_to_kitchen", "paid"]))
             .order_by(Order.created_at.desc())
             .first()
         )
     if order is None:
-        return None
-    if table.current_order_id != order.id:
-        table.current_order_id = order.id
-        db.commit()
+        # Find open POS session
+        pos_session = db.query(PosSession).filter(PosSession.user_id == current_user.id, PosSession.status == 'open').first()
+        if not pos_session:
+            pos_session = PosSession(
+                user_id=current_user.id,
+                status='open',
+                opening_cash=Decimal("0.00")
+            )
+            db.add(pos_session)
+            db.flush()
+
+        customer_id = _get_or_create_walk_in_customer_id(db)
+        order_num = generate_order_number(db, "cashier")
+        order = Order(
+            order_number=order_num,
+            source="cashier",
+            table_id=table_id,
+            customer_id=customer_id,
+            pos_session_id=pos_session.id,
+            placed_by_user_id=current_user.id,
+            waiter_id=current_user.id,
+            status="draft",
+            subtotal=Decimal("0.00"),
+            tax_total=Decimal("0.00"),
+            discount_total=Decimal("0.00"),
+            total=Decimal("0.00"),
+        )
+        db.add(order)
+        db.flush()
+
+    # Block the table (set to occupied, set current_order_id and current_waiter_id)
+    table.current_status = 'occupied'
+    table.current_order_id = order.id
+    table.current_waiter_id = current_user.id
+    db.commit()
+    db.refresh(order)
+
+    # Broadcast via WebSocket
+    manager.broadcast_sync({
+        "event": "table_status_changed",
+        "table_id": table_id,
+        "status": "occupied"
+    })
+
     return _serialize_order(order, db)
+
+
+@router.get("/orders/{order_id}/bill-summary", dependencies=[cashier_dependency])
+def get_bill_summary(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    payments = (
+        db.query(Payment)
+        .filter(Payment.order_id == order.id, Payment.status == "completed")
+        .order_by(Payment.created_at.asc(), Payment.id.asc())
+        .all()
+    )
+    total_paid = sum((Decimal(str(payment.amount or 0)) for payment in payments), Decimal("0.00"))
+    balance_due = max(Decimal(str(order.total or 0)) - total_paid, Decimal("0.00"))
+
+    return {
+        "order": _serialize_order(order, db),
+        "payments": [_serialize_payment(payment, db) for payment in payments],
+        "total_paid": float(total_paid),
+        "balance_due": float(balance_due),
+    }
 
 @router.post("/tables/{table_id}/pay-all", response_model=Dict[str, Any], dependencies=[cashier_dependency])
 async def pay_all_table_orders(
@@ -779,17 +933,33 @@ def search_customer(q: str, db: Session = Depends(get_db)):
     if not query:
         customers = []
     elif query.isdigit() or normalized_phone == query:
-        customers = db.query(Customer).filter(Customer.mobile_number.like(f"%{normalized_phone}%")).all()
+        customers = (
+            db.query(Customer)
+            .filter(Customer.is_guest == False, Customer.mobile_number.like(f"%{normalized_phone}%"))  # noqa: E712
+            .all()
+        )
     elif normalized_phone:
-        customers = db.query(Customer).filter(
-            or_(
-                Customer.name.like(f"%{query}%"),
-                Customer.mobile_number.like(f"%{normalized_phone}%"),
+        customers = (
+            db.query(Customer)
+            .filter(
+                Customer.is_guest == False,  # noqa: E712
+                or_(
+                    Customer.name.like(f"%{query}%"),
+                    Customer.mobile_number.like(f"%{normalized_phone}%"),
+                ),
             )
-        ).all()
+            .all()
+        )
     else:
-        customers = db.query(Customer).filter(Customer.name.like(f"%{query}%")).all()
-    return [{"id": c.id, "name": c.name, "mobile_number": c.mobile_number, "email": c.email} for c in customers]
+        customers = (
+            db.query(Customer)
+            .filter(Customer.is_guest == False, Customer.name.like(f"%{query}%"))  # noqa: E712
+            .all()
+        )
+    return [
+        {"id": c.id, "name": c.name, "mobile_number": c.mobile_number, "email": c.email, "is_guest": bool(c.is_guest)}
+        for c in customers
+    ]
 
 
 @router.get("/customers/{customer_id}", response_model=CustomerResponse, dependencies=[cashier_dependency])
@@ -801,9 +971,21 @@ def get_customer(customer_id: int, db: Session = Depends(get_db)):
 
 @router.post("/customers/resolve", response_model=CustomerResponse, dependencies=[cashier_dependency])
 def resolve_customer(cust_in: CustomerResolve, db: Session = Depends(get_db)):
-    return _upsert_customer(db, name=cust_in.name, mobile_number=cust_in.mobile_number, email=cust_in.email)
+    return _upsert_customer(
+        db,
+        name=cust_in.name,
+        mobile_number=cust_in.mobile_number,
+        email=cust_in.email,
+        require_complete_profile=True,
+    )
 
 
 @router.post("/customers", response_model=CustomerResponse, dependencies=[cashier_dependency])
 def register_customer(cust_in: CustomerSignup, db: Session = Depends(get_db)):
-    return _upsert_customer(db, name=cust_in.name, mobile_number=cust_in.mobile_number, email=cust_in.email)
+    return _upsert_customer(
+        db,
+        name=cust_in.name,
+        mobile_number=cust_in.mobile_number,
+        email=cust_in.email,
+        require_complete_profile=True,
+    )

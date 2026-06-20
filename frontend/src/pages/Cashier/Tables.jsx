@@ -60,27 +60,49 @@ const Tables = () => {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {tables.map((t) => {
+          const isOccupied = t.current_status === 'occupied';
           return (
             <div
               key={t.id}
               onClick={() => handleSelectTable(t)}
-              className="group relative min-h-48 cursor-pointer overflow-hidden rounded-[1.75rem] border border-outline/10 bg-white/80 p-5 shadow-[0_10px_30px_rgba(27,28,26,0.05)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(27,28,26,0.08)]"
+              className={`group relative min-h-48 cursor-pointer overflow-hidden rounded-[1.75rem] border p-5 shadow-[0_10px_30px_rgba(27,28,26,0.05)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(27,28,26,0.08)] ${
+                isOccupied
+                  ? 'border-amber-500/20 bg-amber-50/40 hover:bg-amber-50/60'
+                  : 'border-outline/10 bg-white/80'
+              }`}
             >
-              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/25 to-transparent" />
+              <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${isOccupied ? 'from-amber-500 to-transparent' : 'from-primary/25 to-transparent'}`} />
               <div className="flex h-full flex-col justify-between gap-4">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-outline">Table</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-outline">Table</p>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                      isOccupied 
+                        ? 'bg-amber-100 text-amber-800' 
+                        : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${isOccupied ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                      {t.current_status}
+                    </span>
+                  </div>
                   <h3 className="mt-2 text-3xl font-black tracking-tight text-on-surface">{t.table_number}</h3>
                   <p className="mt-2 text-sm font-semibold uppercase tracking-[0.16em] text-secondary">
                     {t.seats} seats
                   </p>
+                  
+                  {isOccupied && t.active_order_total > 0 && (
+                    <div className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-white/90 border border-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-900 shadow-sm">
+                      <span className="text-[10px] font-normal text-amber-700 uppercase">Bill Due:</span>
+                      Rs.{Number(t.active_order_total).toFixed(2)}
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex items-center justify-between border-t border-outline/10 pt-4">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
-                    Start cashier order
+                <div className={`flex items-center justify-between border-t pt-4 ${isOccupied ? 'border-amber-500/10' : 'border-outline/10'}`}>
+                  <span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${isOccupied ? 'text-amber-900' : 'text-primary'}`}>
+                    {isOccupied ? 'View / Settle Order' : 'Start cashier order'}
                   </span>
-                  <ArrowRight size={15} className="text-primary transition-transform duration-300 group-hover:translate-x-1" />
+                  <ArrowRight size={15} className={`${isOccupied ? 'text-amber-700' : 'text-primary'} transition-transform duration-300 group-hover:translate-x-1`} />
                 </div>
               </div>
             </div>

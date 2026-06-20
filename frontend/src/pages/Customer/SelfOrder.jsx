@@ -26,6 +26,7 @@ const SelfOrder = () => {
   const [sessionActive, setSessionActive] = useState(false);
   const [session, setSession] = useState(null);
   const [order, setOrder] = useState(null);
+  const [billingSummary, setBillingSummary] = useState(null);
   const [screen, setScreen] = useState('browse');
   const [showAuth, setShowAuth] = useState(false);
   const [showCategories, setShowCategories] = useState(false);
@@ -53,6 +54,15 @@ const SelfOrder = () => {
       setError(err.response?.data?.detail || 'Could not load the menu.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadBillingSummary = async () => {
+    try {
+      const response = await api.get(`/self-order/tables/${tableId}/summary`);
+      setBillingSummary(response.data || null);
+    } catch (err) {
+      setBillingSummary(null);
     }
   };
 
@@ -136,6 +146,7 @@ const SelfOrder = () => {
     setShowAuth(false);
     setScreen('order');
     setSessionActive(true);
+    setBillingSummary(null);
   };
 
   const startSession = async (event) => {
@@ -221,7 +232,8 @@ const SelfOrder = () => {
         payment_method: paymentMethod,
       });
       setOrder(response.data);
-      setScreen('confirmed');
+      await loadBillingSummary();
+      setScreen('payment');
       setMessage('Payment completed successfully. Your bill is settled.');
       await loadPublicMenu();
     } catch (err) {
@@ -243,6 +255,34 @@ const SelfOrder = () => {
     setError('');
     setMessage('');
     setShowAuth(true);
+  };
+
+  useEffect(() => {
+    if (screen === 'payment' && tableId) {
+      loadBillingSummary();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, tableId]);
+
+  const handleUnlink = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await api.post(`/self-order/tables/${tableId}/unlink`, { session_pin: session?.session_pin });
+      setMessage('Table released and receipt emailed successfully.');
+      setBillingSummary(null);
+      setSessionActive(false);
+      setSession(null);
+      setOrder(null);
+      setCart({});
+      setConfirmedQuantities({});
+      setScreen('browse');
+      await loadPublicMenu();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Could not release the table.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (loading) {
@@ -569,108 +609,190 @@ const SelfOrder = () => {
         )}
 
         {screen === 'payment' && (
-          <main className="mx-auto max-w-2xl py-8">
-            <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-7 md:p-10">
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
-                Secure payment
-              </p>
-              <h2 className="mt-2 font-headline text-3xl font-black">Choose a payment method</h2>
-              <p className="mt-3 text-sm text-secondary">
-                Your order is already sent to the kitchen. Please complete payment to close the table bill.
-              </p>
+          <main className="pb-10">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+              <section className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
+                <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
+                  Payment
+                </p>
+                <h2 className="mt-2 font-headline text-3xl font-black">Pay the current cart</h2>
+                <p className="mt-3 text-sm text-secondary">
+                  The items on the left are the bill you are about to settle. Once paid, they move
+                  into the cumulative bill on the right. The table remains locked until you press
+                  Unlink.
+                </p>
 
-              <div className="mt-6 rounded-2xl border border-outline/10 bg-surface-container-lowest p-5">
-                <div className="flex justify-between text-sm">
-                  <span className="text-secondary">Order</span>
-                  <span className="font-bold">{order?.bill_number}</span>
+                <div className="mt-6 overflow-hidden rounded-2xl border border-outline/10 bg-surface-container-lowest">
+                  {cartItems.length > 0 ? (
+                    cartItems.map((item, index) => (
+                      <div
+                        key={item.id}
+                        className={`flex items-center justify-between gap-4 p-4 ${
+                          index > 0 ? 'border-t border-outline/10' : ''
+                        }`}
+                      >
+                        <div>
+                          <p className="font-bold">{item.name}</p>
+                          <p className="text-sm text-secondary">
+                            {item.quantity} × {formatMoney(item.price)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold">{formatMoney(item.quantity * item.price)}</p>
+                          <p className="text-[10px] uppercase tracking-wider text-outline">
+                            pending payment
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-5 text-sm text-secondary">No unpaid items left in the cart.</div>
+                  )}
                 </div>
-                <div className="mt-2 flex justify-between text-sm">
-                  <span className="text-secondary">Total due</span>
-                  <span className="font-black text-primary">{formatMoney(order?.total_amount)}</span>
-                </div>
-              </div>
 
-              <div className="mt-6 grid gap-3 md:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('upi')}
-                  className={`rounded-2xl border p-4 text-left transition-colors ${
-                    paymentMethod === 'upi'
-                      ? 'border-primary bg-primary/5 text-primary'
-                      : 'border-outline/10 bg-surface-container-lowest text-secondary'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Smartphone size={18} />
-                    <span className="font-bold">UPI</span>
+                <div className="mt-5 space-y-2 rounded-2xl bg-surface-container-high p-4 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-secondary">Subtotal</span>
+                    <span className="font-bold">{formatMoney(subtotal)}</span>
                   </div>
-                  <p className="mt-2 text-xs">Use any UPI app to complete the payment.</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('card')}
-                  className={`rounded-2xl border p-4 text-left transition-colors ${
-                    paymentMethod === 'card'
-                      ? 'border-primary bg-primary/5 text-primary'
-                      : 'border-outline/10 bg-surface-container-lowest text-secondary'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <CreditCard size={18} />
-                    <span className="font-bold">Card</span>
+                  <div className="flex justify-between">
+                    <span className="text-secondary">Tax</span>
+                    <span className="font-bold">{formatMoney(tax)}</span>
                   </div>
-                  <p className="mt-2 text-xs">Tap or swipe your card at the counter.</p>
-                </button>
-              </div>
+                  <div className="flex justify-between border-t border-outline/10 pt-3 text-lg">
+                    <span className="font-black">Total</span>
+                    <span className="font-black text-primary">{formatMoney(total)}</span>
+                  </div>
+                </div>
 
-              <button
-                type="button"
-                onClick={payForOrder}
-                disabled={busy}
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 font-black text-on-primary disabled:opacity-50"
-              >
-                <CheckCircle2 size={18} />
-                {busy ? 'Processing payment...' : 'Pay now'}
-              </button>
-            </div>
-          </main>
-        )}
+                <div className="mt-6 grid gap-3 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('upi')}
+                    className={`rounded-2xl border p-4 text-left transition-colors ${
+                      paymentMethod === 'upi'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-outline/10 bg-surface-container-lowest text-secondary'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Smartphone size={18} />
+                      <span className="font-bold">UPI</span>
+                    </div>
+                    <p className="mt-2 text-xs">Use any UPI app to complete the payment.</p>
+                  </button>
 
-        {screen === 'confirmed' && (
-          <main className="mx-auto max-w-2xl py-8 text-center">
-            <div className="rounded-3xl border border-emerald-500/20 bg-surface-container-low p-7 md:p-10">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-700">
-                <CheckCircle2 size={34} />
-              </div>
-              <p className="mt-5 text-[10px] font-black uppercase tracking-[0.28em] text-emerald-700">
-                Table released
-              </p>
-              <h2 className="mt-2 font-headline text-3xl font-black">Payment complete</h2>
-              <p className="mt-3 text-sm text-secondary">
-                Your payment is complete, the bill is closed, and the table has been released
-                back to available status.
-              </p>
-              <div className="mt-6 rounded-2xl bg-surface-container-lowest p-5 text-left">
-                <div className="flex justify-between text-sm">
-                  <span className="text-secondary">Order</span>
-                  <span className="font-bold">{order?.bill_number}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('card')}
+                    className={`rounded-2xl border p-4 text-left transition-colors ${
+                      paymentMethod === 'card'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-outline/10 bg-surface-container-lowest text-secondary'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CreditCard size={18} />
+                      <span className="font-bold">Card</span>
+                    </div>
+                    <p className="mt-2 text-xs">Tap or swipe your card at the counter.</p>
+                  </button>
                 </div>
-                <div className="mt-2 flex justify-between text-sm">
-                  <span className="text-secondary">Current total</span>
-                  <span className="font-black text-primary">
-                    {formatMoney(order?.total_amount)}
-                  </span>
+
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={payForOrder}
+                    disabled={busy || cartItems.length === 0}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-4 font-black text-on-primary disabled:opacity-50"
+                  >
+                    <CheckCircle2 size={18} />
+                    {busy ? 'Processing payment...' : 'Pay now'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleUnlink}
+                    disabled={busy || !session?.session_pin}
+                    className="inline-flex items-center justify-center rounded-2xl border border-outline/15 bg-surface-container-lowest px-5 py-4 font-black text-on-surface disabled:opacity-50"
+                  >
+                    Unlink
+                  </button>
                 </div>
-                <div className="mt-2 flex justify-between text-sm">
-                  <span className="text-secondary">Table PIN</span>
-                  <span className="font-bold">{session?.session_pin}</span>
+              </section>
+
+              <aside className="rounded-3xl border border-outline/10 bg-surface-container-low p-5 md:p-7">
+                <p className="text-[10px] font-black uppercase tracking-[0.28em] text-primary">
+                  Cumulative bill
+                </p>
+                <h3 className="mt-2 font-headline text-2xl font-black">Running total</h3>
+                <p className="mt-2 text-sm text-secondary">
+                  This panel only tracks the cumulative bill summary for the table session.
+                </p>
+
+                <div className="mt-6 space-y-3 rounded-2xl bg-surface-container-lowest p-4 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-secondary">Subtotal</span>
+                    <span className="font-bold">
+                      {formatMoney(billingSummary?.subtotal_amount ?? order?.subtotal_amount)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-secondary">Tax</span>
+                    <span className="font-bold">
+                      {formatMoney(billingSummary?.tax_amount ?? order?.tax_amount)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-secondary">Discount</span>
+                    <span className="font-bold">
+                      {formatMoney(billingSummary?.discount_amount ?? order?.discount_amount)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-t border-outline/10 pt-3 text-lg">
+                    <span className="font-black">Total</span>
+                    <span className="font-black text-primary">
+                      {formatMoney(billingSummary?.total_amount ?? order?.total_amount)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div className="mt-6 rounded-2xl border border-outline/10 bg-primary/5 px-4 py-3 text-sm text-secondary">
-                You can close this screen now. If you need another order, a new table session will
-                need to be started again from the QR flow.
-              </div>
+
+                <div className="mt-6 max-h-[42vh] space-y-3 overflow-y-auto pr-1">
+                  {(billingSummary?.orders || []).map((summaryOrder) => (
+                    <div
+                      key={summaryOrder.id}
+                      className="rounded-2xl border border-outline/10 bg-surface-container-lowest p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-bold">{summaryOrder.order_number}</p>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-outline">
+                          {summaryOrder.status}
+                        </span>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {summaryOrder.items?.map((item) => (
+                          <div key={item.id} className="flex justify-between text-sm">
+                            <span className="text-secondary">
+                              {item.name} × {item.quantity}
+                            </span>
+                            <span className="font-bold">{formatMoney(item.total)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 flex justify-between border-t border-outline/10 pt-3">
+                        <span className="text-secondary">Order total</span>
+                        <span className="font-black text-primary">
+                          {formatMoney(summaryOrder.total_amount)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {!billingSummary?.orders?.length && (
+                    <div className="rounded-2xl border border-dashed border-outline/15 p-5 text-sm text-secondary">
+                      Paid items will appear here after you settle the cart.
+                    </div>
+                  )}
+                </div>
+              </aside>
             </div>
           </main>
         )}

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../utils/api';
-import { ArrowLeft, Search, ShoppingCart, Send, CreditCard } from 'lucide-react';
+import { ArrowLeft, Search, ShoppingCart, CreditCard, UserPlus } from 'lucide-react';
 import { groupOrderItems } from '../../utils/orderItems';
 
 const OrderScreen = () => {
@@ -17,9 +17,36 @@ const OrderScreen = () => {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [billSummary, setBillSummary] = useState(null);
   const [receivedCash, setReceivedCash] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState(1);
   const [upiBusy, setUpiBusy] = useState(false);
+
+  // Customer Management States
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [customerSearchText, setCustomerSearchText] = useState('');
+  const [customerSearchResults, setCustomerSearchResults] = useState([]);
+  const [newCustName, setNewCustName] = useState('');
+  const [newCustPhone, setNewCustPhone] = useState('');
+  const [newCustEmail, setNewCustEmail] = useState('');
+  const [isRegisteringNewCust, setIsRegisteringNewCust] = useState(false);
+
+  // Receipt Modal State
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+
+  const loadBillSummary = async (orderId = currentOrder?.id) => {
+    if (!orderId) {
+      setBillSummary(null);
+      return;
+    }
+
+    try {
+      const res = await api.get(`/cashier/orders/${orderId}/bill-summary`);
+      setBillSummary(res.data || null);
+    } catch (err) {
+      setBillSummary(null);
+    }
+  };
 
   const loadData = async () => {
     setError('');
@@ -42,10 +69,17 @@ const OrderScreen = () => {
         throw categoriesRes.reason;
       }
 
-      setCurrentOrder(orderRes.status === 'fulfilled' ? (orderRes.value.data || null) : null);
+      const orderData = orderRes.status === 'fulfilled' ? (orderRes.value.data || null) : null;
+      setCurrentOrder(orderData);
+      if (orderData?.id) {
+        await loadBillSummary(orderData.id);
+      } else {
+        setBillSummary(null);
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to load cashier data.');
       setCurrentOrder(null);
+      setBillSummary(null);
     }
   };
 
@@ -53,14 +87,136 @@ const OrderScreen = () => {
     loadData();
   }, [tableId]);
 
+  const handleCustomerSearch = async (text) => {
+    setCustomerSearchText(text);
+    if (!text.trim()) {
+      setCustomerSearchResults([]);
+      return;
+    }
+    try {
+      const res = await api.get(`/cashier/customers/search`, { params: { q: text } });
+      setCustomerSearchResults(res.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAssignCustomer = async (customerId) => {
+    if (!currentOrder?.id) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await api.patch(`/cashier/orders/${currentOrder.id}/customer`, { customer_id: customerId });
+      setMessage('Customer assigned to this order successfully.');
+      setShowCustomerModal(false);
+      setCustomerSearchText('');
+      setCustomerSearchResults([]);
+      await loadData();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to assign customer.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRegisterAndAssignCustomer = async (e) => {
+    e.preventDefault();
+    if (!newCustName.trim() || !newCustPhone.trim() || !newCustEmail.trim()) {
+      setError('Name, phone number, and email are required to add a customer.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const res = await api.post('/cashier/customers/resolve', {
+        name: newCustName.trim(),
+        mobile_number: newCustPhone.trim(),
+        email: newCustEmail.trim()
+      });
+      const customerId = res.data.id;
+      await api.patch(`/cashier/orders/${currentOrder.id}/customer`, { customer_id: customerId });
+      setMessage('New customer registered and assigned successfully.');
+      setShowCustomerModal(false);
+      setNewCustName('');
+      setNewCustPhone('');
+      setNewCustEmail('');
+      setIsRegisteringNewCust(false);
+      await loadData();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to register customer.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemoveCustomer = async () => {
+    if (!currentOrder?.id) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await api.patch(`/cashier/orders/${currentOrder.id}/customer`, { customer_id: null });
+      setMessage('Customer profile unlinked from order.');
+      await loadData();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to remove customer.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const currentItems = useMemo(() => groupOrderItems(currentOrder?.items || []), [currentOrder]);
-  const sentItems = currentOrder?.status === 'sent_to_kitchen' ? currentItems : [];
-  const cartSubtotal = cart.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
+  const orderLineItems = useMemo(() => (
+    currentItems.map((item) => ({
+      id: `order-${item.id}`,
+      name: item.product_name || item.name,
+      quantity: Number(item.quantity || 0),
+      unit_price: Number(item.unit_price || item.rate || item.price || 0),
+      line_total: Number(item.line_total || 0),
+      source: 'order',
+    }))
+  ), [currentItems]);
+  const cartLineItems = useMemo(() => (
+    cart.map((item) => ({
+      id: `cart-${item.id}`,
+      name: item.name,
+      quantity: Number(item.quantity || 0),
+      unit_price: Number(item.price || 0),
+      line_total: Number(item.price || 0) * Number(item.quantity || 0),
+      source: 'cart',
+    }))
+  ), [cart]);
+  const cumulativeItems = useMemo(() => (
+    [...orderLineItems, ...cartLineItems].reduce((items, item) => {
+      const key = `${item.name}|${Number(item.unit_price).toFixed(2)}`;
+      const existing = items.find((candidate) => candidate.key === key);
+      if (existing) {
+        existing.quantity += item.quantity;
+        existing.line_total += item.line_total;
+        existing.hasPendingCart = existing.hasPendingCart || item.source === 'cart';
+        return items;
+      }
+      items.push({ ...item, key, hasPendingCart: item.source === 'cart' });
+      return items;
+    }, [])
+  ), [orderLineItems, cartLineItems]);
+  const cartSubtotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
+  const cartTax = cartSubtotal * 0.05;
+  const cartTotal = cartSubtotal + cartTax;
   const orderSubtotal = Number(
     currentOrder?.subtotal ?? currentItems.reduce((sum, item) => sum + (Number(item.unit_price || item.rate || item.price || 0) * Number(item.quantity || 0)), 0)
   );
   const orderTax = Number(currentOrder?.tax_total ?? (orderSubtotal * 0.05));
   const orderTotal = Number(currentOrder?.total ?? (orderSubtotal + orderTax));
+  const totalPaid = Number(billSummary?.total_paid ?? 0);
+  const cumulativeSubtotal = orderSubtotal + cartSubtotal;
+  const cumulativeTax = orderTax + cartTax;
+  const cumulativeTotal = orderTotal + cartTotal;
+  const balanceDue = Math.max(cumulativeTotal - totalPaid, 0);
+  const paymentHistory = billSummary?.payments || [];
+  const selectedCustomer = currentOrder?.customer && !currentOrder.customer.is_guest ? currentOrder.customer : null;
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -110,48 +266,22 @@ const OrderScreen = () => {
     document.body.appendChild(script);
   });
 
-  const handleDraftAndSend = async () => {
-    if (cart.length === 0) {
-      setError('Cart is empty.');
-      return;
-    }
-
-    setBusy(true);
-    setError('');
-    setMessage('');
-    try {
-      const payload = {
-        source: 'cashier',
-        table_id: Number(tableId),
-        items: cart.map((item) => ({
-          product_id: item.id,
-          quantity: item.quantity,
-        })),
-      };
-
-      const res = await api.post('/cashier/orders', payload);
-
-      setCart([]);
-      setMessage('Items sent to the chef.');
-      await loadData();
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to send items to the chef.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const handlePayBill = async () => {
     if (!currentOrder?.id) {
       setError('No active bill found for this table.');
       return;
     }
-    if (currentOrder.status !== 'sent_to_kitchen') {
-      setError('Send the items to the chef before paying.');
+    if (!selectedCustomer) {
+      setError('Select or register a customer with phone number before payment.');
+      setShowCustomerModal(true);
       return;
     }
-    if (cart.length > 0) {
-      setError('Please send the new items to the chef before paying.');
+    if (balanceDue <= 0) {
+      setError('This bill has no pending balance.');
+      return;
+    }
+    if (paymentMethodId === 1 && receivedCash && Number(receivedCash) < balanceDue) {
+      setError('Received cash is less than the bill total.');
       return;
     }
 
@@ -159,14 +289,22 @@ const OrderScreen = () => {
     setError('');
     setMessage('');
     try {
+      if (cart.length > 0) {
+        await api.put(`/cashier/orders/${currentOrder.id}/items`, cart.map((item) => ({
+          product_id: item.id,
+          quantity: item.quantity,
+        })));
+      }
+
       const paymentMethodPayload = {
         payment_method_id: Number(paymentMethodId),
-        amount_received: paymentMethodId === 1 && receivedCash ? Number(receivedCash) : orderTotal,
+        amount_received: paymentMethodId === 1 && receivedCash ? Number(receivedCash) : balanceDue,
       };
 
       const res = await api.post(`/cashier/orders/${currentOrder.id}/pay-and-send`, paymentMethodPayload);
 
       if (paymentMethodId === 3 && res.data?.payment_provider === 'razorpay') {
+        setCart([]);
         const ready = await loadRazorpayScript();
         if (!ready) {
           throw new Error('Unable to load Razorpay checkout.');
@@ -190,8 +328,10 @@ const OrderScreen = () => {
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
               });
-              setMessage(`UPI payment completed via Razorpay. Change due: Rs.${Number(verifyRes.data.change_due || 0).toFixed(2)}`);
-              navigate('/cashier/tables');
+              setMessage(`UPI payment recorded. Change due: Rs.${Number(verifyRes.data.change_due || 0).toFixed(2)}`);
+              setCart([]);
+              setReceivedCash('');
+              await loadData();
             } catch (verifyErr) {
               setError(verifyErr.response?.data?.detail || 'Razorpay verification failed.');
             } finally {
@@ -215,10 +355,32 @@ const OrderScreen = () => {
         return;
       }
 
-      setMessage(`Payment completed. Change due: Rs.${Number(res.data.change_due || 0).toFixed(2)}`);
-      navigate('/cashier/tables');
+      setMessage(`Payment recorded. Change due: Rs.${Number(res.data.change_due || 0).toFixed(2)}`);
+      setCart([]);
+      setReceivedCash('');
+      await loadData();
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to complete payment.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleFinishOrder = async () => {
+    if (!currentOrder?.id) {
+      setError('No active bill found for this table.');
+      return;
+    }
+
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const res = await api.post(`/cashier/tables/${tableId}/release`);
+      setMessage(res.data?.message || 'Table released successfully.');
+      navigate('/cashier/tables');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to finish the bill.');
     } finally {
       setBusy(false);
     }
@@ -237,7 +399,7 @@ const OrderScreen = () => {
           </div>
         </div>
 
-        {/* {message && (
+        {message && (
           <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700">
             {message}
           </div>
@@ -246,13 +408,56 @@ const OrderScreen = () => {
           <div className="rounded-xl border border-error/10 bg-error-container/20 px-4 py-3 text-sm text-error">
             {error}
           </div>
-        )} */}
+        )}
+
+        <div className="rounded-2xl border border-outline/10 bg-surface-container-low p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-outline">Customer</p>
+              {selectedCustomer ? (
+                <div className="mt-1">
+                  <h2 className="font-headline text-lg font-bold text-on-surface">{selectedCustomer.name}</h2>
+                  <p className="text-xs text-secondary">
+                    {selectedCustomer.mobile_number}
+                    {selectedCustomer.email ? ` | ${selectedCustomer.email}` : ''}
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-1">
+                  <h2 className="font-headline text-lg font-bold text-on-surface">No customer selected</h2>
+                  <p className="text-xs text-secondary">Search by phone, or register a new customer before payment.</p>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {selectedCustomer && (
+                <button
+                  type="button"
+                  onClick={handleRemoveCustomer}
+                  disabled={busy}
+                  className="rounded-xl border border-outline/20 bg-surface-container-lowest px-4 py-2 text-xs font-semibold text-secondary hover:bg-surface-container-high disabled:opacity-50"
+                >
+                  Change
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowCustomerModal(true)}
+                disabled={busy}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-on-primary shadow hover:bg-primary/95 disabled:opacity-50"
+              >
+                <UserPlus size={14} />
+                {selectedCustomer ? 'Select Customer' : 'Add Customer'}
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div className="rounded-3xl border border-outline/10 bg-surface-container-low p-4 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-outline">Menu</p>
-              <h2 className="font-headline text-lg font-bold text-on-surface">Add new items</h2>
+              <h2 className="font-headline text-lg font-bold text-on-surface">Select items</h2>
             </div>
             <Search className="text-primary" size={18} />
           </div>
@@ -306,9 +511,9 @@ const OrderScreen = () => {
             ))}
           </div>
 
-           <div className="rounded-2xl border border-outline/10 bg-surface-container-lowest p-3 space-y-2">
+          <div className="rounded-2xl border border-outline/10 bg-surface-container-lowest p-3 space-y-2">
             <div className="flex items-center justify-between text-xs font-semibold text-secondary">
-              <span>Temporary cart</span>
+              <span>Selected items</span>
               <span>{cart.length} item(s)</span>
             </div>
             {cart.length === 0 ? (
@@ -316,7 +521,10 @@ const OrderScreen = () => {
             ) : (
               <div className="space-y-2">
                 {cart.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-outline/10 bg-surface-container-low p-3 text-sm">
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-outline/10 bg-surface-container-low p-3 text-sm"
+                  >
                     <div>
                       <p className="font-semibold text-on-surface">{item.name}</p>
                       <p className="text-[10px] text-outline">Rs.{item.price.toFixed(2)} each</p>
@@ -342,27 +550,67 @@ const OrderScreen = () => {
                 ))}
               </div>
             )}
+
+            <div className="mt-3 rounded-xl border border-outline/10 bg-surface-container-low p-3 text-xs space-y-1">
+              <div className="flex justify-between text-secondary">
+                <span>Subtotal</span>
+                <span>Rs.{cartSubtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-secondary">
+                <span>Tax 5%</span>
+                <span>Rs.{cartTax.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between border-t border-outline/5 pt-2 text-sm font-bold text-on-surface">
+                <span>Total</span>
+                <span>Rs.{cartTotal.toFixed(2)}</span>
+              </div>
+            </div>
           </div>
 
-          <div className="rounded-2xl border border-outline/10 bg-surface-container-lowest p-3 text-xs space-y-1">
-            <div className="flex justify-between text-secondary">
-              <span>Subtotal</span>
-              <span>Rs.{cartSubtotal.toFixed(2)}</span>
+          <div className="rounded-2xl border border-outline/10 bg-surface-container-low p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-headline text-base font-bold text-on-surface">Payment</h3>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-secondary">
+                Payable Rs.{balanceDue.toFixed(2)}
+              </span>
             </div>
-            <div className="flex justify-between text-sm font-bold text-on-surface border-t border-outline/5 pt-2">
-              <span>Total</span>
-              <span>Rs.{cartSubtotal.toFixed(2)}</span>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setPaymentMethodId(1)}
+                className={`py-2 text-xs font-bold rounded-lg border text-center transition-all ${paymentMethodId === 1 ? 'bg-primary text-on-primary border-primary' : 'bg-surface text-secondary border-outline/10'}`}
+              >
+                Cash
+              </button>
+              <button
+                onClick={() => setPaymentMethodId(3)}
+                className={`py-2 text-xs font-bold rounded-lg border text-center transition-all ${paymentMethodId === 3 ? 'bg-primary text-on-primary border-primary' : 'bg-surface text-secondary border-outline/10'}`}
+              >
+                UPI
+              </button>
             </div>
-          </div>
 
-          <button
-            onClick={handleDraftAndSend}
-            disabled={cart.length === 0}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-semibold text-on-primary shadow transition-all hover:bg-primary/95 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Send size={14} />
-            Add New Items and Send
-          </button>
+            {paymentMethodId === 1 && (
+              <div>
+                <label className="block text-[10px] font-semibold text-secondary uppercase mb-1">Cash Received (Rs.)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 500"
+                  className="w-full p-2.5 bg-surface-container-low border border-outline/10 rounded-lg text-xs"
+                  value={receivedCash}
+                  onChange={(e) => setReceivedCash(e.target.value)}
+                />
+              </div>
+            )}
+
+            <button
+              onClick={handlePayBill}
+              disabled={busy || upiBusy || cumulativeItems.length === 0 || !selectedCustomer}
+              className="w-full py-3 bg-primary text-on-primary font-semibold rounded-xl text-xs hover:bg-primary/95 transition-all shadow disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            >
+              <CreditCard size={14} />
+              {paymentMethodId === 3 ? 'Pay with Razorpay UPI' : `Pay Bill (Rs.${balanceDue.toFixed(2)})`}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -371,22 +619,28 @@ const OrderScreen = () => {
           <div className="flex justify-between items-center border-b border-outline/5 pb-3">
             <h3 className="font-headline font-bold text-base flex items-center gap-2 text-on-surface">
               <ShoppingCart size={18} />
-              Sent to Chef
+              Bill Items
             </h3>
-            <span className="text-xs font-semibold text-secondary">{sentItems.length} item(s)</span>
+            <span className="text-xs font-semibold text-secondary">{cumulativeItems.length} item(s)</span>
           </div>
 
           <div className="space-y-3">
-            {sentItems.length === 0 ? (
-              <p className="text-xs text-outline italic text-center py-8">Items sent to the chef will appear here.</p>
+            {cumulativeItems.length === 0 ? (
+              <p className="text-xs text-outline italic text-center py-8">Ordered items will appear here.</p>
             ) : (
-              sentItems.map((item) => (
-                <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl border border-outline/10 bg-surface-container-lowest p-3 text-sm">
+              cumulativeItems.map((item) => (
+                <div key={item.key} className="grid grid-cols-[1fr_auto] gap-3 rounded-2xl border border-outline/10 bg-surface-container-lowest p-3 text-sm">
                   <div>
-                    <span className="font-bold text-on-surface">{item.product_name || item.name}</span>
-                    <p className="text-[10px] text-secondary">Rs.{Number(item.unit_price).toFixed(2)} each</p>
+                    <span className="font-bold text-on-surface">{item.name}</span>
+                    <p className="text-[10px] text-secondary">
+                      Rs.{Number(item.unit_price).toFixed(2)} each
+                      {item.hasPendingCart ? ' | pending cart' : ''}
+                    </p>
                   </div>
-                  <span className="font-bold text-on-surface">x{Number(item.quantity)}</span>
+                  <div className="text-right">
+                    <span className="font-bold text-on-surface">x{Number(item.quantity)}</span>
+                    <p className="text-[10px] font-semibold text-secondary">Rs.{Number(item.line_total).toFixed(2)}</p>
+                  </div>
                 </div>
               ))
             )}
@@ -395,58 +649,321 @@ const OrderScreen = () => {
           <div className="rounded-2xl border border-outline/10 bg-surface-container-low p-3 text-xs space-y-2">
             <div className="flex justify-between text-secondary">
               <span>Subtotal</span>
-              <span>Rs.{orderSubtotal.toFixed(2)}</span>
+              <span>Rs.{cumulativeSubtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-secondary">
               <span>Tax 5%</span>
-              <span>Rs.{orderTax.toFixed(2)}</span>
+              <span>Rs.{cumulativeTax.toFixed(2)}</span>
             </div>
             <div className="flex justify-between border-t border-outline/5 pt-2 text-sm font-bold text-on-surface">
               <span>Total amount</span>
-              <span>Rs.{orderTotal.toFixed(2)}</span>
+              <span>Rs.{cumulativeTotal.toFixed(2)}</span>
+            </div>
+            {totalPaid > 0 && (
+              <div className="flex justify-between text-emerald-700">
+                <span>Paid</span>
+                <span>Rs.{totalPaid.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-primary font-bold">
+              <span>Balance due</span>
+              <span>Rs.{balanceDue.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        <div className="border-t border-outline/10 pt-4 space-y-3 mt-6">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setPaymentMethodId(1)}
-              className={`py-2 text-xs font-bold rounded-lg border text-center transition-all ${paymentMethodId === 1 ? 'bg-primary text-on-primary border-primary' : 'bg-surface text-secondary border-outline/10'}`}
-            >
-              Cash
-            </button>
-            <button
-              onClick={() => setPaymentMethodId(3)}
-              className={`py-2 text-xs font-bold rounded-lg border text-center transition-all ${paymentMethodId === 3 ? 'bg-primary text-on-primary border-primary' : 'bg-surface text-secondary border-outline/10'}`}
-            >
-              UPI
-            </button>
-          </div>
 
-          {paymentMethodId === 1 && (
-            <div>
-              <label className="block text-[10px] font-semibold text-secondary uppercase mb-1">Cash Received (Rs.)</label>
-              <input
-                type="number"
-                placeholder="e.g. 500"
-                className="w-full p-2.5 bg-surface-container-low border border-outline/10 rounded-lg text-xs"
-                value={receivedCash}
-                onChange={(e) => setReceivedCash(e.target.value)}
-              />
+
+        {paymentHistory.length > 0 && (
+          <div className="rounded-2xl border border-outline/10 bg-surface-container-low p-3 text-xs space-y-2 mt-4 mx-6">
+            <p className="font-bold uppercase tracking-wider text-outline text-[10px]">Payment Transactions</p>
+            <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1 font-mono">
+              {paymentHistory.map((p, idx) => (
+                <div key={p.id || idx} className="flex justify-between items-center text-secondary border-b border-outline/5 pb-1">
+                  <div>
+                    <span className="font-bold text-on-surface uppercase">{p.payment_method_type}</span>
+                    <span className="text-[9px] text-outline ml-2">
+                      {p.created_at ? new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                    </span>
+                  </div>
+                  <span className="font-bold text-emerald-700">Rs.{Number(p.amount).toFixed(2)}</span>
+                </div>
+              ))}
             </div>
-          )}
+            <div className="flex justify-between border-t border-outline/5 pt-1.5 font-semibold text-on-surface">
+              <span>Total Paid</span>
+              <span className="text-emerald-800">Rs.{totalPaid.toFixed(2)}</span>
+            </div>
+          </div>
+        )}
 
+        <div className="border-t border-outline/10 p-6 space-y-3">
           <button
-            onClick={handlePayBill}
-            disabled={busy || upiBusy || currentItems.length === 0}
-            className="w-full py-3 bg-primary text-on-primary font-semibold rounded-xl text-xs hover:bg-primary/95 transition-all shadow disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            onClick={() => setShowReceiptModal(true)}
+            disabled={currentItems.length === 0}
+            className="w-full py-2.5 bg-surface-container border border-outline/20 text-on-surface font-semibold rounded-xl text-xs hover:bg-surface-container-high transition-all flex items-center justify-center gap-2"
           >
-            <CreditCard size={14} />
-            {paymentMethodId === 3 ? 'Pay with Razorpay UPI' : 'Pay Bill'}
+            <span>View Bill / Print Receipt</span>
+          </button>
+          <button
+            onClick={handleFinishOrder}
+            disabled={busy || currentItems.length === 0}
+            className="w-full py-3 bg-emerald-600 text-white font-semibold rounded-xl text-xs hover:bg-emerald-700 transition-all shadow disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          >
+            <span>Unlink & Release Table</span>
           </button>
         </div>
       </div>
+
+      {/* Customer Selection Modal */}
+      {showCustomerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4 text-on-surface">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="font-headline font-bold">
+                {isRegisteringNewCust ? 'Register New Customer' : 'Assign Customer Profile'}
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowCustomerModal(false);
+                  setIsRegisteringNewCust(false);
+                }}
+                className="text-secondary text-sm font-bold hover:bg-surface-container rounded-full p-1"
+              >
+                x
+              </button>
+            </div>
+
+            {!isRegisteringNewCust ? (
+              <div className="space-y-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline/50" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search by name or mobile number..."
+                    className="w-full rounded-2xl border border-outline/10 bg-surface-container-low py-2.5 pl-10 pr-4 text-xs outline-none focus:border-primary/30"
+                    value={customerSearchText}
+                    onChange={(e) => handleCustomerSearch(e.target.value)}
+                  />
+                </div>
+
+                <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                  {customerSearchResults.length > 0 ? (
+                    customerSearchResults.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => handleAssignCustomer(c.id)}
+                        className="w-full text-left p-3 rounded-xl bg-surface-container-low border border-outline/5 hover:border-primary/30 transition-all flex justify-between items-center"
+                      >
+                        <div>
+                          <p className="font-bold text-xs text-on-surface">{c.name}</p>
+                          <p className="text-[10px] text-secondary">{c.mobile_number}</p>
+                        </div>
+                        <span className="text-[9px] font-bold text-primary uppercase">Select</span>
+                      </button>
+                    ))
+                  ) : customerSearchText.trim() ? (
+                    <p className="text-center text-xs text-outline italic py-4">No matching customers found.</p>
+                  ) : (
+                    <p className="text-center text-xs text-outline italic py-4">Type to search existing customers.</p>
+                  )}
+                </div>
+
+                <div className="border-t pt-4">
+                  <button
+                    onClick={() => setIsRegisteringNewCust(true)}
+                    className="w-full py-2.5 bg-primary/10 border border-primary/20 text-primary hover:bg-primary/15 text-xs font-bold rounded-xl transition-all"
+                  >
+                    Register New Customer Profile
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleRegisterAndAssignCustomer} className="space-y-3.5 text-left">
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase mb-1">Mobile Number *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 9876543210"
+                    className="w-full p-2.5 bg-surface-container-low border border-outline/10 rounded-xl text-xs text-on-surface"
+                    value={newCustPhone}
+                    onChange={(e) => setNewCustPhone(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase mb-1">Customer Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. John Doe"
+                    className="w-full p-2.5 bg-surface-container-low border border-outline/10 rounded-xl text-xs text-on-surface"
+                    value={newCustName}
+                    onChange={(e) => setNewCustName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-secondary uppercase mb-1">Email Address *</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="e.g. john@example.com"
+                    className="w-full p-2.5 bg-surface-container-low border border-outline/10 rounded-xl text-xs text-on-surface"
+                    value={newCustEmail}
+                    onChange={(e) => setNewCustEmail(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex gap-3 border-t pt-4">
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="flex-1 py-2.5 bg-primary text-on-primary font-bold rounded-xl text-xs shadow hover:bg-primary/95 transition-all"
+                  >
+                    Register & Assign
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsRegisteringNewCust(false)}
+                    className="flex-1 py-2.5 bg-stone-200 text-stone-700 font-bold rounded-xl text-xs hover:bg-stone-300 transition-all"
+                  >
+                    Back to Search
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Bill / Thermal Receipt Modal */}
+      {showReceiptModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Receipt Header */}
+            <div className="bg-primary/5 p-4 border-b border-outline/10 flex justify-between items-center text-on-surface">
+              <h3 className="font-headline font-bold">Customer Receipt</h3>
+              <button 
+                onClick={() => setShowReceiptModal(false)}
+                className="p-1 hover:bg-surface-container rounded-full text-secondary text-sm font-bold"
+              >
+                x
+              </button>
+            </div>
+
+            {/* Receipt Body (Thermal Style) */}
+            <div className="flex-1 overflow-y-auto p-6 font-mono text-xs text-stone-800 space-y-4 bg-amber-50/10">
+              <div className="text-center space-y-1">
+                <h2 className="font-headline text-xl font-bold tracking-tight text-stone-900">CAFE ODOO</h2>
+                <p className="text-[10px] text-secondary">PSG iTech Canteen Desk</p>
+                <p className="text-[10px] text-secondary">Date: {new Date(currentOrder?.created_at || Date.now()).toLocaleString()}</p>
+              </div>
+
+              <div className="border-t border-dashed border-stone-300 pt-3 space-y-1 text-[11px]">
+                <div className="flex justify-between">
+                  <span>Bill No:</span>
+                  <span className="font-bold">{currentOrder?.order_number}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Table:</span>
+                  <span className="font-bold">Table {tableId}</span>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="border-t border-dashed border-stone-300 pt-3">
+                <div className="grid grid-cols-[2fr_1fr_1fr_1fr] font-bold pb-2 border-b border-stone-200">
+                  <span>Item</span>
+                  <span className="text-center">Qty</span>
+                  <span className="text-right">Price</span>
+                  <span className="text-right">Total</span>
+                </div>
+                <div className="divide-y divide-stone-100 py-1">
+                  {currentItems.map((item) => (
+                    <div key={item.id} className="grid grid-cols-[2fr_1fr_1fr_1fr] py-1.5">
+                      <span className="font-sans font-medium text-stone-900">{item.product_name || item.name}</span>
+                      <span className="text-center">{Number(item.quantity)}</span>
+                      <span className="text-right">{Number(item.unit_price || item.price).toFixed(1)}</span>
+                      <span className="text-right font-bold text-stone-900">{(Number(item.quantity) * Number(item.unit_price || item.price)).toFixed(1)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Financials */}
+              <div className="border-t border-dashed border-stone-300 pt-3 space-y-1.5 text-[11px]">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>Rs.{orderSubtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tax (GST 5%):</span>
+                  <span>Rs.{orderTax.toFixed(2)}</span>
+                </div>
+                {Number(currentOrder?.discount_total || 0) > 0 && (
+                  <div className="flex justify-between text-error font-semibold">
+                    <span>Discount:</span>
+                    <span>-Rs.{Number(currentOrder.discount_total).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold text-sm text-stone-900 border-t border-stone-200 pt-1.5">
+                  <span>Grand Total:</span>
+                  <span>Rs.{orderTotal.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Payments list */}
+              {paymentHistory.length > 0 && (
+                <div className="border-t border-dashed border-stone-300 pt-3 space-y-2">
+                  <h4 className="font-bold text-[10px] uppercase tracking-wider text-stone-500">Payment Transactions</h4>
+                  <div className="space-y-1 text-[10px]">
+                    {paymentHistory.map((p, index) => (
+                      <div key={p.id || index} className="flex justify-between items-center text-stone-700 bg-stone-50 px-2 py-1 rounded">
+                        <span>
+                          {index + 1}. {p.payment_method_type.toUpperCase()} 
+                          {p.reference_code ? ` (${p.reference_code.substring(0, 8)})` : ''}
+                        </span>
+                        <span className="font-bold">Rs.{Number(p.amount).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-between text-[11px] font-bold text-emerald-800 bg-emerald-50/50 p-2 rounded-lg border border-emerald-100/50 mt-1">
+                    <span>Total Paid:</span>
+                    <span>Rs.{totalPaid.toFixed(2)}</span>
+                  </div>
+                  {balanceDue > 0 && (
+                    <div className="flex justify-between text-[11px] font-bold text-amber-800 bg-amber-50/50 p-2 rounded-lg border border-amber-100/50">
+                      <span>Balance Due:</span>
+                      <span>Rs.{balanceDue.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="text-center pt-4 border-t border-dashed border-stone-300 text-[10px] text-stone-500">
+                <p>Thank you for dining with us!</p>
+                <p>Cafe Odoo POS Terminal</p>
+              </div>
+            </div>
+
+            {/* Receipt Footer Actions */}
+            <div className="p-4 bg-stone-50 border-t border-stone-200 flex gap-3">
+              <button
+                onClick={() => window.print()}
+                className="flex-1 py-2.5 bg-primary text-on-primary font-bold rounded-xl text-xs shadow hover:bg-primary/95 transition-all"
+              >
+                Print Receipt
+              </button>
+              <button
+                onClick={() => setShowReceiptModal(false)}
+                className="flex-1 py-2.5 bg-stone-200 text-stone-700 font-bold rounded-xl text-xs hover:bg-stone-300 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -21,7 +21,6 @@ import AdminReports from './pages/Admin/Reports';
 import CashierTables from './pages/Cashier/Tables';
 import CashierOrderScreen from './pages/Cashier/OrderScreen';
 import CashierOrdersList from './pages/Cashier/OrdersList';
-import CashierCustomers from './pages/Cashier/Customers';
 import KitchenDisplay from './pages/Kitchen/KitchenDisplay';
 import SelfOrder from './pages/Customer/SelfOrder';
 
