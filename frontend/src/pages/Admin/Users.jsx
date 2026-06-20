@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../utils/api';
-import { Plus, Trash2, Key, ToggleLeft, ToggleRight, UserCheck } from 'lucide-react';
+import { Plus, Trash2, Key, ToggleLeft, ToggleRight, UserCheck, Edit2 } from 'lucide-react';
 
 const passwordConstraintMessage = 'Password must be at least 8 characters and contain one uppercase letter, one number, and one special character.';
 
@@ -22,6 +22,10 @@ const Users = () => {
   const [resetPasswordTarget, setResetPasswordTarget] = useState(null);
   const [resetPasswordValue, setResetPasswordValue] = useState('');
   const [resetPasswordError, setResetPasswordError] = useState('');
+
+  // Edit staff modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editTargetId, setEditTargetId] = useState(null);
 
   const fetchUsers = async () => {
     try {
@@ -81,6 +85,37 @@ const Users = () => {
       fetchUsers();
     } catch (err) {
       setModalError(err.response?.data?.detail || 'Failed to create staff member');
+    }
+  };
+
+  const openEditModal = (staff) => {
+    setEditTargetId(staff.id);
+    setName(staff.name);
+    setEmail(staff.email);
+    setMobileNumber(staff.mobile_number);
+    setRoleId(staff.role_id);
+    setModalError('');
+    setShowEditModal(true);
+  };
+
+  const handleEditStaff = async (e) => {
+    e.preventDefault();
+    setModalError('');
+    try {
+      await api.put(`/admin/users/${editTargetId}`, {
+        name,
+        email,
+        mobile_number: mobileNumber,
+        role_id: Number(roleId)
+      });
+      setShowEditModal(false);
+      setName('');
+      setEmail('');
+      setMobileNumber('');
+      setEditTargetId(null);
+      fetchUsers();
+    } catch (err) {
+      setModalError(err.response?.data?.detail || 'Failed to update staff member');
     }
   };
 
@@ -209,6 +244,13 @@ const Users = () => {
                     </button>
                   </td>
                   <td className="p-4 text-right space-x-2">
+                    <button
+                      onClick={() => openEditModal(s)}
+                      className="p-2 text-secondary hover:text-primary transition-colors"
+                      title="Edit User"
+                    >
+                      <Edit2 size={18} />
+                    </button>
                     <button
                       onClick={() => openResetPassword(s.id)}
                       className="p-2 text-secondary hover:text-primary transition-colors"
@@ -340,6 +382,70 @@ const Users = () => {
                   className="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-semibold hover:bg-primary/95"
                 >
                   Save Account
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Staff Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-surface border border-outline/10 p-6 rounded-2xl w-full max-w-md space-y-4">
+            <h3 className="font-headline font-bold text-lg text-on-surface">Edit Staff Account</h3>
+            {modalError && <p className="text-xs text-error">{modalError}</p>}
+            <form onSubmit={handleEditStaff} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-secondary uppercase mb-1">Full Name</label>
+                <input
+                  type="text" required
+                  className="w-full p-3 bg-surface-container-low border border-outline/10 rounded-lg text-sm"
+                  value={name} onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-secondary uppercase mb-1">Email</label>
+                <input
+                  type="email" required
+                  className="w-full p-3 bg-surface-container-low border border-outline/10 rounded-lg text-sm"
+                  value={email} onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-secondary uppercase mb-1">Mobile Number</label>
+                <input
+                  type="text" required
+                  className="w-full p-3 bg-surface-container-low border border-outline/10 rounded-lg text-sm"
+                  value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-secondary uppercase mb-1">Role Type</label>
+                <select
+                  className="w-full p-3 bg-surface-container-low border border-outline/10 rounded-lg text-sm"
+                  value={roleId} onChange={(e) => setRoleId(e.target.value)}
+                >
+                  <option value={1}>Superadmin</option>
+                  <option value={2}>Employee</option>
+                  <option value={3}>Cashier</option>
+                  <option value={4}>Inventory Manager</option>
+                  <option value={5}>Chef</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 border border-outline/10 rounded-lg text-sm font-semibold hover:bg-surface-container"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-semibold hover:bg-primary/95"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>
