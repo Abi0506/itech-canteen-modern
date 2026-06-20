@@ -444,6 +444,15 @@ def _finalize_order_payment(
     }
 
 
+def _get_razorpay_client() -> razorpay.Client:
+    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+        raise HTTPException(
+            status_code=503,
+            detail="Razorpay sandbox is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.",
+        )
+    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+
 def _create_razorpay_checkout_order(
     db: Session,
     *,
@@ -807,7 +816,7 @@ def get_current_table_order(
     if order is None and table.current_status != 'available':
         order = (
             db.query(Order)
-            .filter(Order.table_id == table_id, Order.status.in_(["draft", "sent_to_kitchen", "paid"]))
+            .filter(Order.table_id == table_id, Order.status.in_(["draft", "sent_to_kitchen"]))
             .order_by(Order.created_at.desc())
             .first()
         )

@@ -255,6 +255,8 @@ const SelfOrder = () => {
     hydrateOrder(payload.order);
     if (payload.order?.loyalty) {
       setLoyaltyInfo(payload.order.loyalty);
+    } else {
+      setLoyaltyInfo(null);
     }
     const pin = payload.session?.session_pin;
     if (pin) {
@@ -306,6 +308,8 @@ const SelfOrder = () => {
         const customer = response.data.customer || {};
         if (response.data.loyalty) {
           setLoyaltyInfo(response.data.loyalty);
+        } else {
+          setLoyaltyInfo(null);
         }
         await startSessionWithPayload({
           phone_no: signup.phone_no,
@@ -403,6 +407,19 @@ const SelfOrder = () => {
     }
   };
 
+  const loadRazorpayScript = () => new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+
   const payForOrder = async () => {
     if (!order?.id) return;
     if (!canProceedToPayment) {
@@ -418,7 +435,75 @@ const SelfOrder = () => {
       const response = await api.post(`/self-order/orders/${order.id}/pay`, {
         payment_method: paymentMethod,
       });
+
+      if (paymentMethod === 'upi' && response.data?.payment_provider === 'razorpay') {
+        const ready = await loadRazorpayScript();
+        if (!ready) {
+          throw new Error('Unable to load Razorpay checkout.');
+        }
+
+        const options = {
+          key: response.data.key_id,
+          amount: response.data.amount_paise,
+          currency: response.data.currency || 'INR',
+          name: 'Cafe Odoo',
+          description: `Order ${response.data.order_number || order.order_number}`,
+          order_id: response.data.razorpay_order_id,
+          theme: {
+            color: '#b44d2c',
+          },
+          handler: async (razorpayResponse) => {
+            setBusy(true);
+            try {
+              const verifyRes = await api.post(`/self-order/orders/${order.id}/razorpay/verify`, {
+                razorpay_order_id: razorpayResponse.razorpay_order_id,
+                razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+                razorpay_signature: razorpayResponse.razorpay_signature,
+              });
+              setOrder(verifyRes.data);
+              if (verifyRes.data?.loyalty) {
+                setLoyaltyInfo(verifyRes.data.loyalty);
+              } else {
+                setLoyaltyInfo(null);
+              }
+              setScreen('confirmed');
+              const pts = verifyRes.data?.loyalty_points_awarded;
+              if (pts && pts > 0) {
+                setMessage(`Payment completed successfully. Your bill is settled. You earned ${pts} loyalty points!`);
+              } else {
+                setMessage('Payment completed successfully. Your bill is settled.');
+              }
+              await loadPublicMenu();
+            } catch (verifyErr) {
+              setError(verifyErr.response?.data?.detail || 'Razorpay verification failed.');
+            } finally {
+              setBusy(false);
+            }
+          },
+          modal: {
+            ondismiss: () => setBusy(false),
+          },
+          prefill: {
+            name: signup.name || 'Self Order Customer',
+            contact: signup.phone_no || '',
+          },
+        };
+
+        const razorpay = new window.Razorpay(options);
+        razorpay.on('payment.failed', (failResponse) => {
+          setError(failResponse.error?.description || 'UPI payment failed.');
+          setBusy(false);
+        });
+        razorpay.open();
+        return;
+      }
+
       setOrder(response.data);
+      if (response.data?.loyalty) {
+        setLoyaltyInfo(response.data.loyalty);
+      } else {
+        setLoyaltyInfo(null);
+      }
       setScreen('confirmed');
       const pts = response.data?.loyalty_points_awarded;
       if (pts && pts > 0) {
@@ -427,9 +512,9 @@ const SelfOrder = () => {
         setMessage('Payment completed successfully. Your bill is settled.');
       }
       await loadPublicMenu();
+      setBusy(false);
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not complete payment.');
-    } finally {
       setBusy(false);
     }
   };
@@ -446,7 +531,12 @@ const SelfOrder = () => {
     try {
       const response = await api.post(`/loyalty/${customerId}/claim-reward`);
       setMessage(response.data.message || 'Reward claimed! You get a free Signature Drink.');
-      setLoyaltyInfo({ total_points: 0, can_claim_reward: false });
+      const remainingPoints = response.data.remaining_points !== undefined ? response.data.remaining_points : 0;
+      setLoyaltyInfo((prev) => ({
+        ...prev,
+        total_points: remainingPoints,
+        can_claim_reward: remainingPoints >= 50
+      }));
       if (order?.id) {
         await checkKitchenStatus(true);
       }
@@ -974,6 +1064,17 @@ const SelfOrder = () => {
                   <span className="text-secondary">Total due later</span>
                   <span className="font-black text-primary">{formatMoney(order?.total_amount)}</span>
                 </div>
+                {order?.customer && Math.floor((order?.total_amount || 0) / 100) > 0 && (
+                  <div className="mt-2 flex justify-between text-sm pt-2 border-t border-outline/10">
+                    <span className="text-secondary flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[16px] text-[#e85d04]">stars</span>
+                      Points earned in this order
+                    </span>
+                    <span className="font-black text-[#e85d04]">
+                      +{Math.floor((order?.total_amount || 0) / 100)} pts
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="mt-6 space-y-3">
@@ -1238,6 +1339,10 @@ const SelfOrder = () => {
                     <input
                       required
                       type="tel"
+                      pattern="[0-9]{10}"
+                      maxLength="10"
+                      minLength="10"
+                      title="Mobile number must be exactly 10 digits"
                       value={signup.phone_no}
                       onChange={(event) =>
                         setSignup((current) => ({ ...current, phone_no: event.target.value }))
@@ -1277,6 +1382,10 @@ const SelfOrder = () => {
                     <input
                       required
                       type="tel"
+                      pattern="[0-9]{10}"
+                      maxLength="10"
+                      minLength="10"
+                      title="Mobile number must be exactly 10 digits"
                       value={signup.phone_no}
                       onChange={(event) =>
                         setSignup((current) => ({ ...current, phone_no: event.target.value }))
@@ -1290,6 +1399,8 @@ const SelfOrder = () => {
                     <input
                       required
                       type="email"
+                      pattern=".*@.*"
+                      title="Please include an '@' in the email address."
                       value={signup.email}
                       onChange={(event) =>
                         setSignup((current) => ({ ...current, email: event.target.value }))

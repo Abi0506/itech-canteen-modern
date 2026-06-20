@@ -142,7 +142,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               </Route>
 
               {/* ── Cashier routes ─── */}
-             <Route element={<RequireRole allowedRoles={['cashier']} />}>
+              <Route element={<RequireRole allowedRoles={['cashier']} />}>
                 <Route path="/cashier/tables" element={<CashierTables />} />
                 <Route path="/cashier/order/:tableId" element={<CashierOrderScreen />} />
                 <Route path="/cashier/orders" element={<CashierOrdersList />} />

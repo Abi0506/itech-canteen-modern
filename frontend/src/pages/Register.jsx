@@ -173,6 +173,8 @@ const Register = () => {
                 className="w-full px-4 py-3 bg-surface-container-low border-2 border-transparent rounded-lg focus:ring-0 focus:border-primary/30 text-on-surface hover:bg-surface-container-high"
                 id="email"
                 type="email"
+                pattern=".*@.*"
+                title="Please include an '@' in the email address."
                 placeholder="e.g. email@psgitech.ac.in"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -189,6 +191,10 @@ const Register = () => {
                 className="w-full px-4 py-3 bg-surface-container-low border-2 border-transparent rounded-lg focus:ring-0 focus:border-primary/30 text-on-surface hover:bg-surface-container-high"
                 id="phone"
                 type="tel"
+                pattern="[0-9]{10}"
+                maxLength="10"
+                minLength="10"
+                title="Phone number must be exactly 10 digits"
                 placeholder="e.g. 9876543210"
                 value={phoneNo}
                 onChange={(e) => setPhoneNo(e.target.value)}

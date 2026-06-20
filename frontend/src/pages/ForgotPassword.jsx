@@ -110,6 +110,8 @@ const ForgotPassword = () => {
                     <input
                       id="forgot-email"
                       type="email"
+                      pattern=".*@.*"
+                      title="Please include an '@' in the email address."
                       autoComplete="email"
                       required
                       placeholder="Enter your registered email"

@@ -142,6 +142,7 @@ const OrderScreen = () => {
   };
 
   useEffect(() => {
+    resetForNextCustomer();
     loadData();
   }, [tableId]);
 
@@ -472,6 +473,7 @@ const OrderScreen = () => {
               });
               const verifyPts = verifyRes.data?.loyalty_points_awarded;
               const verifyLoyaltyMsg = verifyPts && verifyPts > 0 ? ` Customer earned ${verifyPts} loyalty points!` : '';
+              await api.post(`/cashier/tables/${tableId}/release`);
               setMessage(`UPI payment recorded. Change due: Rs.${Number(verifyRes.data.change_due || 0).toFixed(2)}.${verifyLoyaltyMsg} Ready for the next customer.`);
               resetForNextCustomer();
               await loadData();
@@ -500,6 +502,7 @@ const OrderScreen = () => {
 
       const pts = res.data?.loyalty_points_awarded;
       const loyaltyMsg = pts && pts > 0 ? ` Customer earned ${pts} loyalty points!` : '';
+      await api.post(`/cashier/tables/${tableId}/release`);
       setMessage(`Payment recorded. Change due: Rs.${Number(res.data.change_due || 0).toFixed(2)}.${loyaltyMsg} Ready for the next customer.`);
       resetForNextCustomer();
       await loadData();
@@ -549,6 +552,8 @@ const OrderScreen = () => {
     try {
       const res = await api.post(`/cashier/tables/${tableId}/release`);
       setMessage(res.data?.message || 'Table released successfully.');
+      resetForNextCustomer();
+      setCurrentOrder(null);
       navigate('/cashier/tables');
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to finish the bill.');
@@ -882,7 +887,7 @@ const OrderScreen = () => {
           </button>
           <button
             onClick={handleFinishOrder}
-            disabled={busy || currentItems.length === 0}
+            disabled={busy}
             className="w-full py-3 bg-emerald-600 text-white font-semibold rounded-xl text-xs hover:bg-emerald-700 transition-all shadow disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             <span>Unlink & Release Table</span>
@@ -960,8 +965,12 @@ const OrderScreen = () => {
                 <div>
                   <label className="block text-[10px] font-bold text-secondary uppercase mb-1">Mobile Number *</label>
                   <input
-                    type="text"
+                    type="tel"
                     required
+                    pattern="[0-9]{10}"
+                    maxLength="10"
+                    minLength="10"
+                    title="Mobile number must be exactly 10 digits"
                     placeholder="e.g. 9876543210"
                     className="w-full p-2.5 bg-surface-container-low border border-outline/10 rounded-xl text-xs text-on-surface"
                     value={newCustPhone}
@@ -983,6 +992,8 @@ const OrderScreen = () => {
                   <label className="block text-[10px] font-bold text-secondary uppercase mb-1">Email Address <span className="normal-case font-normal">(optional)</span></label>
                   <input
                     type="email"
+                    pattern=".*@.*"
+                    title="Please include an '@' in the email address."
                     placeholder="e.g. john@example.com"
                     className="w-full p-2.5 bg-surface-container-low border border-outline/10 rounded-xl text-xs text-on-surface"
                     value={newCustEmail}
