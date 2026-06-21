@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
+import ThemeToggle from './components/ThemeToggle';
 
 // Auth Pages
 import Login from './pages/Login';
@@ -169,6 +170,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <ThemeToggle />
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

@@ -20,10 +20,32 @@ const KitchenDisplay = () => {
 
   useEffect(() => {
     loadOrders();
-    const socket = new WebSocket(`ws://localhost:8000/ws/kds`);
-    socket.onmessage = () => loadOrders();
-    socket.onclose = () => {};
-    return () => socket.close();
+    let socket;
+    let reconnectTimeout;
+    
+    // Get the base API URL or fallback
+    const API_BASE_URL = api.defaults?.baseURL || 'http://localhost:8000';
+    // Convert http(s) to ws(s)
+    const wsUrl = API_BASE_URL.replace(/^http/, 'ws') + '/ws/kds';
+
+    const connectWS = () => {
+      socket = new WebSocket(wsUrl);
+      socket.onmessage = () => loadOrders();
+      socket.onclose = () => {
+        // Auto-reconnect after 3 seconds
+        reconnectTimeout = setTimeout(connectWS, 3000);
+      };
+    };
+
+    connectWS();
+
+    return () => {
+      clearTimeout(reconnectTimeout);
+      if (socket) {
+        socket.onclose = () => {}; // prevent reconnect on intentional unmount
+        socket.close();
+      }
+    };
   }, []);
 
   const groupedOrders = useMemo(() => {

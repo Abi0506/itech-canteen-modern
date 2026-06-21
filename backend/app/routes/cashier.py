@@ -262,18 +262,30 @@ def _append_items_to_order(db: Session, order: Order, items_in: List[OrderItemCr
                 )
             )
 
-        db.add(
-            OrderItem(
-                order_id=order.id,
-                product_id=item.product_id,
-                quantity=quantity,
-                unit_price=prod.price,
-                line_discount=Decimal("0.00"),
-                line_total=line_total,
-                kitchen_status="to_cook",
-                notes=item.notes,
+        existing_item = db.query(OrderItem).filter(
+            OrderItem.order_id == order.id,
+            OrderItem.product_id == item.product_id,
+            OrderItem.kitchen_status == "to_cook"
+        ).first()
+
+        if existing_item:
+            existing_item.quantity += quantity
+            existing_item.line_total += line_total
+            if item.notes:
+                existing_item.notes = f"{existing_item.notes} | {item.notes}" if existing_item.notes else item.notes
+        else:
+            db.add(
+                OrderItem(
+                    order_id=order.id,
+                    product_id=item.product_id,
+                    quantity=quantity,
+                    unit_price=prod.price,
+                    line_discount=Decimal("0.00"),
+                    line_total=line_total,
+                    kitchen_status="to_cook",
+                    notes=item.notes,
+                )
             )
-        )
 
     db.flush()
     db.refresh(order)
@@ -731,16 +743,15 @@ async def create_cashier_order(order_in: OrderCreate, db: Session = Depends(get_
         table.current_status = "reserved"
         db.commit()
 
-    if order_in.table_id:
-        await manager.broadcast_all({
-            "event": "cart_updated",
-            "table_id": order_in.table_id,
-            "order_id": active_order.id,
-            "items": [{"name": i.product.name, "quantity": float(i.quantity), "price": float(i.unit_price)} for i in active_order.items],
-            "subtotal": float(active_order.subtotal),
-            "tax_total": float(active_order.tax_total),
-            "total": float(active_order.total)
-        })
+    await manager.broadcast_all({
+        "event": "cart_updated",
+        "table_id": order_in.table_id,
+        "order_id": active_order.id,
+        "items": [{"name": i.product.name, "quantity": float(i.quantity), "price": float(i.unit_price)} for i in active_order.items],
+        "subtotal": float(active_order.subtotal),
+        "tax_total": float(active_order.tax_total),
+        "total": float(active_order.total)
+    })
 
     return active_order
 
@@ -763,16 +774,15 @@ async def update_cashier_order_items(
     db.refresh(order)
     
     # Broadcast to CFD
-    if order.table_id:
-        await manager.broadcast_all({
-            "event": "cart_updated",
-            "table_id": order.table_id,
-            "order_id": order.id,
-            "items": [{"name": i.product.name, "quantity": float(i.quantity), "price": float(i.unit_price)} for i in order.items],
-            "subtotal": float(order.subtotal),
-            "tax_total": float(order.tax_total),
-            "total": float(order.total)
-        })
+    await manager.broadcast_all({
+        "event": "cart_updated",
+        "table_id": order.table_id,
+        "order_id": order.id,
+        "items": [{"name": i.product.name, "quantity": float(i.quantity), "price": float(i.unit_price)} for i in order.items],
+        "subtotal": float(order.subtotal),
+        "tax_total": float(order.tax_total),
+        "total": float(order.total)
+    })
         
     return order
 
@@ -793,12 +803,11 @@ async def send_order_to_kitchen(order_id: int, db: Session = Depends(get_db), cu
             table.current_waiter_id = current_user.id
     db.commit()
     db.refresh(order)
-    if order.table_id:
-        await manager.broadcast_all({
-            "event": "order_sent_to_kitchen",
-            "order_id": order.id,
-            "table_id": order.table_id,
-        })
+    await manager.broadcast_all({
+        "event": "order_sent_to_kitchen",
+        "order_id": order.id,
+        "table_id": order.table_id,
+    })
     return {
         "success": True,
         "order_id": order.id,
