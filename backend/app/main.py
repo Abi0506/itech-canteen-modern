@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.db.bootstrap import bootstrap_database
 
 # Import new-system routes
 from app.routes import auth, admin, inventory, cashier, kds, payments, loyalty, reports, pos_session, self_order, selforder, websockets, cfd
@@ -42,9 +41,7 @@ app.include_router(websockets.router)
 app.include_router(cfd.router)
 
 
-@app.on_event("startup")
-def startup_database():
-    bootstrap_database()
+
 
 @app.get("/")
 def health_check():
