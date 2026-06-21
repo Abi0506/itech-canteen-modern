@@ -89,27 +89,3 @@
   background-image: radial-gradient(circle at 2px 2px, rgba(159, 64, 45, 0.05) 1px, transparent 0);
   background-size: 32px 32px;
 }
-
-:root {
-  --color-surface: 251 249 245;
-  --color-on-surface: 27 28 26;
-  --color-surface-container-lowest: 255 255 255;
-  --color-surface-container-low: 245 243 239;
-  --color-surface-container: 239 238 234;
-  --color-surface-container-high: 234 232 228;
-  --color-inverse-surface: 48 49 46;
-  --color-secondary: 95 94 94;
-  --color-outline: 137 114 109;
-}
-
-.dark {
-  --color-surface: 27 28 26;
-  --color-on-surface: 251 249 245;
-  --color-surface-container-lowest: 15 15 15;
-  --color-surface-container-low: 33 34 32;
-  --color-surface-container: 43 44 42;
-  --color-surface-container-high: 50 51 49;
-  --color-inverse-surface: 242 240 237;
-  --color-secondary: 200 198 198;
-  --color-outline: 160 140 135;
-}
