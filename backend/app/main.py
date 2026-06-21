@@ -4,7 +4,7 @@ from app.core.config import settings
 from app.db.bootstrap import bootstrap_database
 
 # Import new-system routes
-from app.routes import auth, admin, inventory, cashier, kds, payments, loyalty, reports, pos_session, self_order, selforder, websockets
+from app.routes import auth, admin, inventory, cashier, kds, payments, loyalty, reports, pos_session, self_order, selforder, websockets, cfd
 
 app = FastAPI(
     title="Cafe Odoo API",
@@ -39,6 +39,7 @@ app.include_router(pos_session.router)
 app.include_router(self_order.router)
 app.include_router(selforder.router)
 app.include_router(websockets.router)
+app.include_router(cfd.router)
 
 
 @app.on_event("startup")

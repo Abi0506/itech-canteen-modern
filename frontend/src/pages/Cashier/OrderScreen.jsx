@@ -144,6 +144,16 @@ const OrderScreen = () => {
   useEffect(() => {
     resetForNextCustomer();
     loadData();
+
+    // Broadcast to CFD mirror that this table is now active
+    if (tableId) {
+      api.post('/cashier/cfd/set-table', { table_id: Number(tableId) }).catch(console.error);
+    }
+
+    return () => {
+      // Clear CFD mirror on unmount
+      api.post('/cashier/cfd/set-table', { table_id: null }).catch(console.error);
+    };
   }, [tableId]);
 
   const handleCustomerSearch = async (text) => {
@@ -358,6 +368,24 @@ const OrderScreen = () => {
   const balanceDue = Math.max(cumulativeTotal - totalPaid, 0);
   const paymentHistory = billSummary?.payments || [];
   const selectedCustomer = currentOrder?.customer && !currentOrder.customer.is_guest ? currentOrder.customer : null;
+
+  // Sync live state to CFD
+  useEffect(() => {
+    if (tableId) {
+      api.post('/cashier/cfd/sync', {
+        table_id: Number(tableId),
+        cart: cart,
+        order_items: orderLineItems,
+        customer: selectedCustomer || null,
+        totals: {
+          subtotal: cumulativeSubtotal,
+          tax: cumulativeTax,
+          total: cumulativeTotal,
+          balance_due: balanceDue
+        }
+      }).catch(console.error);
+    }
+  }, [cart, orderLineItems, cumulativeSubtotal, cumulativeTax, cumulativeTotal, balanceDue, selectedCustomer, tableId]);
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -824,15 +852,27 @@ const OrderScreen = () => {
             </div>
 
             {paymentMethodId === 1 && (
-              <div>
+              <div className="space-y-1.5">
                 <label className="block text-[10px] font-semibold text-secondary uppercase mb-1">Cash Received (Rs.)</label>
                 <input
                   type="number"
                   placeholder="e.g. 500"
-                  className="w-full p-2.5 bg-surface-container-lowest border border-outline/10 rounded-lg text-xs"
+                  className="w-full p-2.5 bg-surface-container-lowest border border-outline/10 rounded-lg text-xs font-bold font-mono"
                   value={receivedCash}
                   onChange={(e) => setReceivedCash(e.target.value)}
                 />
+                {receivedCash && Number(receivedCash) >= balanceDue && balanceDue > 0 && (
+                  <div className="flex justify-between items-center bg-emerald-50 text-emerald-800 p-2 rounded-lg border border-emerald-200 mt-2">
+                    <span className="font-bold uppercase tracking-wide text-[10px]">Change Due</span>
+                    <span className="font-black text-sm">Rs.{(Number(receivedCash) - balanceDue).toFixed(2)}</span>
+                  </div>
+                )}
+                {receivedCash && Number(receivedCash) < balanceDue && balanceDue > 0 && (
+                  <div className="flex justify-between items-center bg-error/10 text-error p-2 rounded-lg border border-error/20 mt-2">
+                    <span className="font-bold uppercase tracking-wide text-[10px]">Short by</span>
+                    <span className="font-black text-sm">Rs.{(balanceDue - Number(receivedCash)).toFixed(2)}</span>
+                  </div>
+                )}
               </div>
             )}
 

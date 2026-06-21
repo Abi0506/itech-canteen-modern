@@ -1188,3 +1188,34 @@ def send_order_email(order_id: int, payload: Dict[str, Any] = None, db: Session 
 
     return {"success": True, "message": f"Receipt email sent to {to_email}"}
 
+from pydantic import BaseModel
+
+class CFDTableRequest(BaseModel):
+    table_id: int | None
+
+class CFDSyncRequest(BaseModel):
+    table_id: int
+    cart: list
+    order_items: list
+    customer: dict | None
+    totals: dict
+
+@router.post("/cfd/set-table", dependencies=[cashier_dependency])
+async def set_cfd_table(payload: CFDTableRequest):
+    """Broadcasts to CFD clients to switch to a specific table or show the idle screen."""
+    from app.routes.websockets import manager
+    await manager.broadcast_all({
+        "event": "cfd_table_changed",
+        "table_id": payload.table_id
+    })
+    return {"success": True, "table_id": payload.table_id}
+
+@router.post("/cfd/sync", dependencies=[cashier_dependency])
+async def sync_cfd_state(payload: CFDSyncRequest):
+    """Proxies live UI state from Cashier to CFD Mirror."""
+    from app.routes.websockets import manager
+    await manager.broadcast_all({
+        "event": "cfd_sync",
+        "data": payload.dict()
+    })
+    return {"success": True}

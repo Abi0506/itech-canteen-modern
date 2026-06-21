@@ -26,6 +26,7 @@ import CashierOrderScreen from './pages/Cashier/OrderScreen';
 import CashierOrdersList from './pages/Cashier/OrdersList';
 import KitchenDisplay from './pages/Kitchen/KitchenDisplay';
 import SelfOrder from './pages/Customer/SelfOrder';
+import CustomerFacingDisplay from './pages/Customer/CustomerFacingDisplay';
 
 // Inventory Pages
 import InventoryDashboard from './pages/Inventory/Dashboard';
@@ -122,6 +123,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/self-order/:tableId" element={<SelfOrder />} />
+          <Route path="/mirror" element={<CustomerFacingDisplay />} />
 
           {/* Protected routes */}
           <Route element={<RequireAuth />}>
