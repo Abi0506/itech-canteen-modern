@@ -150,8 +150,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 <Route path="/cashier/orders" element={<CashierOrdersList />} />
               </Route>
 
-              {/* ── Inventory Manager routes ─── */}
-              <Route element={<RequireRole allowedRoles={['inventory_manager']} />}>
+              {/* ── Inventory Management routes ─── */}
+              <Route element={<RequireRole allowedRoles={['inventory_manager', 'superadmin']} />}>
                 <Route path="/inventory/dashboard" element={<InventoryDashboard />} />
                 <Route path="/inventory/items" element={<InventoryItems />} />
                 <Route path="/inventory/categories" element={<InventoryCategories />} />

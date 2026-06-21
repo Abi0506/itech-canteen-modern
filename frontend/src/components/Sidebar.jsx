@@ -125,6 +125,48 @@ const Sidebar = () => {
               <BarChart2 size={18} />
               Reports & Charts
             </Link>
+            
+            <div className="pt-4 pb-2">
+              <div className="h-px w-full bg-outline/10"></div>
+            </div>
+            
+            <p className="text-[10px] font-bold text-outline uppercase tracking-wider px-3 mb-2">Inventory Management</p>
+            <Link
+              to="/inventory/dashboard"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                isActive('/inventory/dashboard') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+              }`}
+            >
+              <LayoutDashboard size={18} />
+              Inventory Dashboard
+            </Link>
+            <Link
+              to="/inventory/items"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                isActive('/inventory/items') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+              }`}
+            >
+              <Coffee size={18} />
+              Products CRUD
+            </Link>
+            <Link
+              to="/inventory/categories"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                isActive('/inventory/categories') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+              }`}
+            >
+              <Folder size={18} />
+              Categories
+            </Link>
+            <Link
+              to="/inventory/stock"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                isActive('/inventory/stock') ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+              }`}
+            >
+              <RefreshCw size={18} />
+              Stock Adjustments
+            </Link>
           </div>
         )}
 

@@ -17,9 +17,9 @@ const Items = () => {
 
   const loadData = async () => {
     try {
-      const res = await api.get('/admin/items');
+      const res = await api.get('/inventory/products');
       setItems(res.data);
-      const catRes = await api.get('/admin/categories');
+      const catRes = await api.get('/inventory/categories');
       setCategories(catRes.data);
       if (catRes.data.length > 0) setCatId(catRes.data[0].id);
     } catch (e) {
@@ -40,11 +40,18 @@ const Items = () => {
         name,
         category_id: parseInt(catId),
         price: parseFloat(price),
-        cash_price: cashPrice ? parseFloat(cashPrice) : null,
+        uom: "piece",
+        tax_percent: 0.0,
         description: desc,
-        quantity_available: parseInt(qty) || 0
+        kds_visible: true
       };
-      await api.post('/admin/items', payload);
+      const response = await api.post('/inventory/products', payload);
+      const newProduct = response.data;
+      
+      const initialQty = parseInt(qty) || 0;
+      if (initialQty > 0 && newProduct?.id) {
+        await api.put(`/inventory/stock/${newProduct.id}`, { quantity: initialQty, note: "Initial stock" });
+      }
       setName('');
       setPrice('');
       setCashPrice('');
@@ -59,7 +66,7 @@ const Items = () => {
   const handleDeleteItem = async (itemId) => {
     if (!window.confirm('Delete this food item?')) return;
     try {
-      await api.delete(`/admin/items/${itemId}`);
+      await api.delete(`/inventory/products/${itemId}`);
       loadData();
     } catch (err) {
       console.error(err);
@@ -101,7 +108,7 @@ const Items = () => {
                   <td className="p-4 font-bold text-on-surface">{item.name}</td>
                   <td className="p-4">₹{parseFloat(item.price).toFixed(2)}</td>
                   <td className="p-4 text-secondary">{item.cash_price ? `₹${parseFloat(item.cash_price).toFixed(2)}` : 'N/A'}</td>
-                  <td className="p-4 font-semibold">{item.quantity_available} units</td>
+                  <td className="p-4 font-semibold">{item.current_stock ?? item.quantity_available ?? 0} units</td>
                   <td className="p-4 flex gap-2">
                     <button onClick={() => handleDeleteItem(item.id)} className="p-1 text-outline hover:text-error">
                       <Trash2 size={14} />

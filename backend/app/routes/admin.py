@@ -68,8 +68,8 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     paid_orders_count = sum(1 for o in today_orders if o.status == "paid")
     today_customer_ids = {o.customer_id for o in today_orders if o.status == "paid" and o.customer_id}
     
-    occupied_tables = db.query(TableMaster).filter(TableMaster.current_status == 'occupied').count()
-    total_tables = db.query(TableMaster).count()
+    occupied_tables = db.query(TableMaster).filter(TableMaster.current_status == 'occupied', TableMaster.is_active == True).count()
+    total_tables = db.query(TableMaster).filter(TableMaster.is_active == True).count()
 
     day_wise_statistics = []
     for i in range(6, -1, -1):
@@ -386,7 +386,7 @@ def delete_promotion(promo_id: int, db: Session = Depends(get_db)):
 # ── Live Table Status Monitoring ─────────────────────────────────────────────
 @router.get("/tables/status", dependencies=[admin_dependency])
 def monitor_tables(db: Session = Depends(get_db)):
-    tables = db.query(TableMaster).all()
+    tables = db.query(TableMaster).filter(TableMaster.is_active == True).all()
     result = []
     for t in tables:
         # Find active order
