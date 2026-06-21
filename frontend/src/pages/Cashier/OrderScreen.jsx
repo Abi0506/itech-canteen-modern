@@ -480,7 +480,6 @@ const OrderScreen = () => {
       const res = await api.post(`/cashier/orders/${order.id}/pay-and-send`, paymentMethodPayload);
 
       if (paymentMethodId === 3 && res.data?.payment_provider === 'razorpay') {
-        setCart([]);
         const ready = await loadRazorpayScript();
         if (!ready) {
           throw new Error('Unable to load Razorpay checkout.');

@@ -48,6 +48,7 @@ const SelfOrder = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loyaltyInfo, setLoyaltyInfo] = useState(null);
+  const [tableBlocked, setTableBlocked] = useState(false);
   const orderItems = useMemo(() => Object.values(order?.items || {}), [order]);
   const completedItems = orderItems.filter((item) => isCompletedStatus(item.status)).length;
   const isReadyForPayment = orderItems.length > 0 && completedItems === orderItems.length;
@@ -72,6 +73,7 @@ const SelfOrder = () => {
       setTable(response.data.table || null);
       setMenu(response.data.menu || []);
       setSessionActive(Boolean(response.data.session_active));
+      setTableBlocked(Boolean(response.data.table_blocked));
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not load the menu.');
     } finally {
@@ -580,7 +582,8 @@ const SelfOrder = () => {
               <button
                 type="button"
                 onClick={openOrderGate}
-                className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-on-primary"
+                disabled={tableBlocked && !sessionActive}
+                className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-on-primary disabled:opacity-50"
               >
                 <ShoppingBag size={17} />
                 Place order
@@ -597,6 +600,17 @@ const SelfOrder = () => {
       </header>
 
       <div className="mx-auto max-w-6xl px-4 py-4 md:px-5">
+        {tableBlocked && !sessionActive && (
+          <div className="mb-5 flex items-start gap-3 rounded-2xl border border-error/20 bg-error-container/30 px-4 py-4 text-sm text-error shadow-sm">
+            <AlertTriangle className="mt-0.5 shrink-0 text-error" size={18} />
+            <div>
+              <p className="font-headline font-bold text-base text-error">Table Blocked by Cashier</p>
+              <p className="mt-1 text-xs text-error/90 font-medium">
+                This table is currently blocked or reserved by the cashier. Please ask staff for assistance.
+              </p>
+            </div>
+          </div>
+        )}
         {message && (
           <div className="mb-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-700">
             {message}
