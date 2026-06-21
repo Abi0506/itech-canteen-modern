@@ -85,7 +85,14 @@ const Tables = () => {
                       {t.current_status}
                     </span>
                   </div>
-                  <h3 className="mt-2 text-3xl font-black tracking-tight text-on-surface">{t.table_number}</h3>
+                  <div className="flex items-center gap-1.5 mt-2">
+                    {t.floor_name && (
+                      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-outline bg-surface-container-high px-2 py-0.5 rounded-full">
+                        {t.floor_name}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="mt-1 text-3xl font-black tracking-tight text-on-surface">{t.table_number}</h3>
                   <p className="mt-2 text-sm font-semibold uppercase tracking-[0.16em] text-secondary">
                     {t.seats} seats
                   </p>

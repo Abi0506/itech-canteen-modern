@@ -556,10 +556,13 @@ def list_tables(db: Session = Depends(get_db)):
             waiter = db.query(User).filter(User.id == t.current_waiter_id).first()
             if waiter:
                 waiter_name = waiter.name
+        floor_name = t.floor.name if t.floor else None
         active_orders = _get_active_table_orders(db, t.id)
         result.append({
             "id": t.id,
             "table_number": t.table_number,
+            "floor_id": t.floor_id,
+            "floor_name": floor_name,
             "seats": t.seats,
             "is_active": t.is_active,
             "current_status": t.current_status,
@@ -570,6 +573,22 @@ def list_tables(db: Session = Depends(get_db)):
             "active_order_total": float(sum((Decimal(str(order.total)) for order in active_orders), Decimal("0.00"))),
         })
     return result
+
+@router.get("/tables/{table_id}", dependencies=[cashier_dependency])
+def get_table(table_id: int, db: Session = Depends(get_db)):
+    t = db.query(TableMaster).filter(TableMaster.id == table_id, TableMaster.is_active == True).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Table not found")
+    return {
+        "id": t.id,
+        "table_number": t.table_number,
+        "floor_id": t.floor_id,
+        "floor_name": t.floor.name if t.floor else None,
+        "seats": t.seats,
+        "current_status": t.current_status,
+    }
+
+
 
 @router.post("/tables/{table_id}/release", dependencies=[cashier_dependency])
 def release_table(table_id: int, db: Session = Depends(get_db)):

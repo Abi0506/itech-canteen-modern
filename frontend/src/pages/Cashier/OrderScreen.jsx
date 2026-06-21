@@ -11,6 +11,7 @@ const OrderScreen = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [currentOrder, setCurrentOrder] = useState(null);
+  const [tableInfo, setTableInfo] = useState(null);
   const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCat, setActiveCat] = useState('all');
@@ -98,14 +99,18 @@ const OrderScreen = () => {
   const loadData = async () => {
     setError('');
     try {
-      const [productsRes, categoriesRes, orderRes] = await Promise.allSettled([
+      const [productsRes, categoriesRes, orderRes, tableRes] = await Promise.allSettled([
         api.get('/inventory/products'),
         api.get('/inventory/categories'),
         api.get(`/cashier/tables/${tableId}/current-order`),
+        api.get(`/cashier/tables/${tableId}`),
       ]);
 
       setProducts(productsRes.status === 'fulfilled' ? (productsRes.value.data || []) : []);
       setCategories(categoriesRes.status === 'fulfilled' ? (categoriesRes.value.data || []) : []);
+      if (tableRes.status === 'fulfilled') {
+        setTableInfo(tableRes.value.data || null);
+      }
 
       if (orderRes.status === 'rejected') {
         const orderErr = orderRes.reason;
@@ -593,7 +598,11 @@ const OrderScreen = () => {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="font-headline font-bold text-xl text-on-surface">Table {tableId} Bill</h1>
+            <h1 className="font-headline font-bold text-xl text-on-surface">
+              {tableInfo
+                ? `${tableInfo.floor_name ? tableInfo.floor_name + ' · ' : ''}Table ${tableInfo.table_number} Bill`
+                : `Table Bill`}
+            </h1>
             <p className="text-secondary text-xs">Add items here, then send them to the chef.</p>
           </div>
         </div>
