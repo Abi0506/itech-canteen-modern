@@ -32,6 +32,7 @@ from app.models.schemas import OrderCreate, OrderResponse, CustomerSignup, Custo
 from app.routes.auth import require_role
 from app.routes.websockets import manager
 from app.services.email import send_table_release_email, send_receipt_email
+from app.services.pricing import recalculate_order_totals
 from app.routes.loyalty import award_loyalty_points
 
 router = APIRouter(prefix="/cashier", tags=["cashier"])
