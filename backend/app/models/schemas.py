@@ -46,12 +46,12 @@ class UserResponse(BaseModel):
 class CustomerSignup(BaseModel):
     name: str
     mobile_number: str
-    email: Optional[EmailStr] = None
+    email: EmailStr
 
 class CustomerResolve(BaseModel):
     name: Optional[str] = None
     mobile_number: str
-    email: Optional[EmailStr] = None
+    email: EmailStr
 
 class CustomerResponse(BaseModel):
     id: int
@@ -287,6 +287,8 @@ class VenueSettingResponse(BaseModel):
     tax_label: str
     receipt_footer_text: Optional[str] = None
     kds_auto_advance: bool
+    razorpay_key_id: Optional[str] = None
+    razorpay_key_secret: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -303,6 +305,8 @@ class VenueSettingUpdate(BaseModel):
     tax_label: Optional[str] = None
     receipt_footer_text: Optional[str] = None
     kds_auto_advance: Optional[bool] = None
+    razorpay_key_id: Optional[str] = None
+    razorpay_key_secret: Optional[str] = None
 
 # Floor & Table Schemas
 class FloorCreate(BaseModel):

@@ -36,7 +36,7 @@ const Navbar = () => {
     }
     if (user.role_name === 'superadmin') {
       return [
-        { to: '/admin/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+        // { to: '/admin/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
         { to: '/admin/users', label: 'Users & Staff', icon: <Users size={18} /> },
         { to: '/admin/coupons', label: 'Coupons & Promos', icon: <Percent size={18} /> },
         { to: '/admin/tables', label: 'Table Monitor', icon: <Layers size={18} /> },

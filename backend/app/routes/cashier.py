@@ -25,13 +25,13 @@ from app.db.models import (
     PaymentMethod,
     TableSession,
     LoyaltyCredit,
-    LoyaltyTransaction
+    LoyaltyTransaction,
+    VenueSetting
 )
 from app.models.schemas import OrderCreate, OrderResponse, CustomerSignup, CustomerResolve, CustomerResponse, OrderItemCreate
 from app.routes.auth import require_role
 from app.routes.websockets import manager
-from app.services.email import send_table_release_email
-from app.services.pricing import recalculate_order_totals
+from app.services.email import send_table_release_email, send_receipt_email
 from app.routes.loyalty import award_loyalty_points
 
 router = APIRouter(prefix="/cashier", tags=["cashier"])
@@ -128,13 +128,17 @@ def _get_payment_method_by_type(db: Session, method_type: str) -> PaymentMethod:
     return method
 
 
-def _get_razorpay_client() -> razorpay.Client:
-    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+def _get_razorpay_client(db: Session) -> razorpay.Client:
+    venue_setting = db.query(VenueSetting).first()
+    key_id = venue_setting.razorpay_key_id if venue_setting and venue_setting.razorpay_key_id else settings.RAZORPAY_KEY_ID
+    key_secret = venue_setting.razorpay_key_secret if venue_setting and venue_setting.razorpay_key_secret else settings.RAZORPAY_KEY_SECRET
+
+    if not key_id or not key_secret:
         raise HTTPException(
             status_code=503,
-            detail="Razorpay sandbox is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.",
+            detail="Razorpay is not configured. Please contact the administrator.",
         )
-    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+    return razorpay.Client(auth=(key_id, key_secret))
 
 
 def _get_or_create_walk_in_customer_id(db: Session) -> int:
@@ -444,6 +448,39 @@ def _finalize_order_payment(
             "status": table.current_status if table else "reserved",
         })
 
+    # Send Receipt Email
+    if order.customer_id:
+        customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
+        if customer and customer.email:
+            # Build items
+            items_list = []
+            for itm in order.items:
+                product = db.query(Product).filter(Product.id == itm.product_id).first()
+                if product:
+                    items_list.append({
+                        "name": product.name,
+                        "quantity": itm.quantity,
+                        "price": itm.unit_price
+                    })
+            table_name = table.table_number if table else None
+            
+            # Since tax/discount are not explicitly fields in Order right now, we infer or just pass 0 if not tracked.
+            # Usually order.total is grand_total. 
+            # We'll just pass 0 for tax/discount if not available on the model, or calculate them if they are.
+            # Looking at schemas, tax and discount are not in Order model by default in this codebase (total is stored).
+            
+            send_receipt_email(
+                to_email=customer.email,
+                customer_name=customer.name,
+                order_number=order.order_number,
+                table_name=table_name,
+                items=items_list,
+                subtotal=order.total,
+                tax=0,
+                discount=0,
+                grand_total=order.total,
+            )
+
     return {
         "success": True,
         "order_id": order.id,
@@ -451,15 +488,6 @@ def _finalize_order_payment(
         "change_due": float(payment.change_due or 0),
         "loyalty_points_awarded": loyalty_points_awarded,
     }
-
-
-def _get_razorpay_client() -> razorpay.Client:
-    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
-        raise HTTPException(
-            status_code=503,
-            detail="Razorpay sandbox is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.",
-        )
-    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
 
 def _create_razorpay_checkout_order(
@@ -475,7 +503,7 @@ def _create_razorpay_checkout_order(
         raise HTTPException(status_code=400, detail="Select or register a customer before payment.")
 
     method = _get_payment_method_by_type(db, "upi")
-    client = _get_razorpay_client()
+    client = _get_razorpay_client(db)
 
     if order.status == "draft":
         _send_order_to_kitchen(order, db, current_user)
@@ -500,7 +528,7 @@ def _create_razorpay_checkout_order(
         "amount": float(order.total),
         "amount_paise": amount_paise,
         "currency": "INR",
-        "key_id": settings.RAZORPAY_KEY_ID,
+        "key_id": client.auth[0],
         "payment_method_id": method.id,
     }
 
@@ -516,7 +544,7 @@ def generate_order_number(db: Session, source: str) -> str:
 
 @router.get("/tables", dependencies=[cashier_dependency])
 def list_tables(db: Session = Depends(get_db)):
-    tables = db.query(TableMaster).all()
+    tables = db.query(TableMaster).filter(TableMaster.is_active == True).all()
     result = []
     for t in tables:
         waiter_name = None
@@ -549,6 +577,8 @@ def release_table(table_id: int, db: Session = Depends(get_db)):
     for order in active_orders:
         items_count = db.query(OrderItem).filter(OrderItem.order_id == order.id).count()
         if items_count == 0 and order.status == "draft":
+            if table.current_order_id == order.id:
+                table.current_order_id = None
             db.delete(order)
             db.flush()
         else:
@@ -975,7 +1005,7 @@ async def verify_razorpay_payment(
     if not razorpay_order_id or not razorpay_payment_id or not razorpay_signature:
         raise HTTPException(status_code=400, detail="Missing Razorpay payment details")
 
-    client = _get_razorpay_client()
+    client = _get_razorpay_client(db)
     try:
         client.utility.verify_payment_signature(
             {
@@ -1155,3 +1185,62 @@ def get_customer_loyalty(customer_id: int, db: Session = Depends(get_db)):
             for t in txs
         ],
     }
+
+
+@router.post("/orders/{order_id}/send-email", dependencies=[cashier_dependency])
+def send_order_email(order_id: int, payload: Dict[str, Any] = None, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    to_email = None
+    if payload:
+        to_email = payload.get("email")
+
+    if not to_email and order.customer_id:
+        customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
+        if customer:
+            to_email = customer.email
+
+    if not to_email:
+        raise HTTPException(status_code=400, detail="No email address available to send receipt")
+
+    items_list = []
+    for itm in order.items:
+        product = db.query(Product).filter(Product.id == itm.product_id).first()
+        if product:
+            items_list.append({
+                "name": product.name,
+                "quantity": itm.quantity,
+                "price": itm.unit_price
+            })
+
+    table_name = None
+    if order.table_id:
+        table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
+        if table:
+            table_name = table.table_number
+
+    customer_name = "Customer"
+    if order.customer_id:
+        customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
+        if customer:
+            customer_name = customer.name
+
+    try:
+        send_receipt_email(
+            to_email=to_email,
+            customer_name=customer_name,
+            order_number=order.order_number,
+            table_name=table_name,
+            items=items_list,
+            subtotal=order.total,
+            tax=0,
+            discount=0,
+            grand_total=order.total,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+
+    return {"success": True, "message": f"Receipt email sent to {to_email}"}
+

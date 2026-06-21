@@ -16,7 +16,9 @@ const optionalConfig = [
   { key: 'menu_background_color', label: 'Menu Background Color' },
   { key: 'menu_background_image_url', label: 'Menu Background Image URL' },
   { key: 'receipt_footer_text', label: 'Receipt Footer Text' },
-  { key: 'kds_auto_advance', label: 'KDS Auto-Advance' }
+  { key: 'kds_auto_advance', label: 'KDS Auto-Advance' },
+  { key: 'razorpay_key_id', label: 'Razorpay Key ID' },
+  { key: 'razorpay_key_secret', label: 'Razorpay Secret' }
 ];
 
 const hasValue = (value) => {
@@ -256,6 +258,33 @@ const Settings = () => {
                 checked={Boolean(settings.kds_auto_advance)}
                 onChange={(e) => handleChange('kds_auto_advance', e.target.checked)}
               />
+            </div>
+          </div>
+
+          <div className="bg-surface-container-low border border-outline/10 p-6 rounded-2xl space-y-4">
+            <h3 className="font-headline font-bold text-sm text-on-surface border-b border-outline/5 pb-2">Payment Gateway (Razorpay)</h3>
+            <p className="text-xs text-secondary mb-2">Configure online payments for Self-Order and Cashier online collections.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-secondary uppercase mb-1">Razorpay Key ID</label>
+                <input
+                  type="text"
+                  className="w-full p-3 bg-surface border border-outline/10 rounded-lg text-sm"
+                  value={settings.razorpay_key_id || ''}
+                  onChange={(e) => handleChange('razorpay_key_id', e.target.value)}
+                  placeholder="rzp_test_..."
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-secondary uppercase mb-1">Razorpay Key Secret</label>
+                <input
+                  type="password"
+                  className="w-full p-3 bg-surface border border-outline/10 rounded-lg text-sm"
+                  value={settings.razorpay_key_secret || ''}
+                  onChange={(e) => handleChange('razorpay_key_secret', e.target.value)}
+                  placeholder="Secret key..."
+                />
+              </div>
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import api from '../../utils/api';
-import { TrendingUp, ShoppingBag, DollarSign, Users, Calendar, BarChart2 } from 'lucide-react';
+import { TrendingUp, ShoppingBag, DollarSign, Users, Calendar, BarChart2, Download } from 'lucide-react';
 
 const formatCurrency = (value) => `Rs.${Number(value || 0).toFixed(2)}`;
 
@@ -240,26 +240,25 @@ const Reports = () => {
   const [dashboard, setDashboard] = useState(null);
   const [dateFrom, setDateFrom] = useState(sevenAgo);
   const [dateTo, setDateTo] = useState(today);
+  const [exportDate, setExportDate] = useState(today);
 
   // Date-filtered data
   const [itemSales, setItemSales] = useState([]);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [transactions, setTransactions] = useState([]);
 
   const [loadingStatic, setLoadingStatic] = useState(true);
   const [loadingFiltered, setLoadingFiltered] = useState(false);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [loadError, setLoadError] = useState('');
 
-  // Load dashboard KPI cards once
-  useEffect(() => {
-    api
-      .get('/reports/dashboard')
-      .then((r) => setDashboard(r.data))
-      .catch(() => setLoadError('Could not load dashboard stats.'))
-      .finally(() => setLoadingStatic(false));
+  const fetchDashboard = useCallback(async () => {
+    const res = await api.get('/reports/dashboard');
+    setDashboard(res.data);
   }, []);
 
-  // Load date-filtered data whenever dates change
   const fetchFiltered = useCallback(async () => {
     setLoadingFiltered(true);
     setLoadError('');
@@ -280,9 +279,98 @@ const Reports = () => {
     }
   }, [dateFrom, dateTo]);
 
+  const fetchTransactions = useCallback(async (selectedDate = exportDate) => {
+    setLoadingTransactions(true);
+    setLoadError('');
+    try {
+      const res = await api.get('/reports/transactions', { params: { report_date: selectedDate } });
+      setTransactions(res.data?.transactions || []);
+    } catch (e) {
+      setTransactions([]);
+      setLoadError('Could not load transaction history.');
+    } finally {
+      setLoadingTransactions(false);
+    }
+  }, [exportDate]);
+
+  const refreshReports = useCallback(async () => {
+    await Promise.allSettled([
+      fetchDashboard(),
+      fetchFiltered(),
+      fetchTransactions(exportDate),
+    ]);
+  }, [exportDate, fetchDashboard, fetchFiltered, fetchTransactions]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadInitial = async () => {
+      try {
+        await Promise.allSettled([
+          fetchDashboard(),
+          fetchFiltered(),
+          fetchTransactions(exportDate),
+        ]);
+      } finally {
+        if (mounted) {
+          setLoadingStatic(false);
+        }
+      }
+    };
+
+    loadInitial();
+
+    const socket = new WebSocket('ws://localhost:8000/ws/admin');
+    socket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (['payment_completed', 'order_sent_to_kitchen', 'cart_updated'].includes(payload.event)) {
+          refreshReports();
+        }
+      } catch (err) {
+        // ignore malformed messages
+      }
+    };
+
+    const pollId = window.setInterval(refreshReports, 30000);
+
+    return () => {
+      mounted = false;
+      socket.close();
+      window.clearInterval(pollId);
+    };
+  }, [exportDate, fetchDashboard, fetchFiltered, fetchTransactions, refreshReports]);
+
   useEffect(() => {
     fetchFiltered();
   }, [fetchFiltered]);
+
+  useEffect(() => {
+    fetchTransactions(exportDate);
+  }, [exportDate, fetchTransactions]);
+
+  const handleDownloadPdf = async () => {
+    setPdfBusy(true);
+    setLoadError('');
+    try {
+      const res = await api.get('/reports/transactions/pdf', {
+        params: { report_date: exportDate },
+        responseType: 'blob',
+      });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `transaction-history-${exportDate}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setLoadError('Could not download PDF report.');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
 
   if (loadingStatic) {
     return (
@@ -324,6 +412,40 @@ const Reports = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* ── PDF Export ── */}
+      <div className="flex flex-col gap-4 p-5 bg-surface-container-low border border-outline/10 rounded-2xl lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-primary font-bold text-sm">
+            <Download size={18} />
+            Transaction PDF Export
+          </div>
+          <p className="text-xs text-secondary mt-1">
+            Choose a specific date to download the transaction history with user and payment details.
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+          <div>
+            <label className="block text-[10px] font-bold uppercase text-secondary mb-1">Date</label>
+            <input
+              type="date"
+              value={exportDate}
+              max={today}
+              onChange={(e) => setExportDate(e.target.value)}
+              className="px-3 py-2 bg-surface border border-outline/10 rounded-xl text-sm outline-none focus:border-primary/40"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={pdfBusy}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary shadow hover:bg-primary/95 disabled:opacity-50"
+          >
+            <Download size={16} />
+            {pdfBusy ? 'Preparing PDF...' : 'Download PDF'}
+          </button>
+        </div>
       </div>
 
       {/* ── Date Range Filter ── */}
@@ -426,6 +548,64 @@ const Reports = () => {
             Category Revenue Mix
           </h3>
           <PieChartCard data={categories} />
+        </div>
+      </div>
+
+      {/* ── Transaction History ── */}
+      <div className="bg-surface-container-low border border-outline/10 p-6 rounded-2xl space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-headline font-bold text-sm text-on-surface">Transaction History</h3>
+            <p className="text-[10px] text-secondary mt-0.5">
+              Detailed order, customer, user, and payment information for {exportDate}.
+            </p>
+          </div>
+          {loadingTransactions && <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />}
+        </div>
+
+        <div className="overflow-x-auto rounded-2xl border border-outline/10">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-surface-container-high text-[10px] uppercase tracking-wider text-outline">
+                <th className="p-3 font-bold">Order</th>
+                <th className="p-3 font-bold">Table</th>
+                <th className="p-3 font-bold">Customer</th>
+                <th className="p-3 font-bold">Cashier</th>
+                <th className="p-3 font-bold">Payment</th>
+                <th className="p-3 font-bold">Total</th>
+                <th className="p-3 font-bold">Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.map((txn) => (
+                <tr key={txn.id} className="border-t border-outline/10 text-sm">
+                  <td className="p-3 font-semibold text-on-surface">{txn.order_number}</td>
+                  <td className="p-3 text-secondary">{txn.table?.table_number || '-'}</td>
+                  <td className="p-3 text-secondary">
+                    <div className="font-medium text-on-surface">{txn.customer?.name || 'Walk-in'}</div>
+                    <div className="text-[10px] text-outline">{txn.customer?.mobile_number || '-'}</div>
+                  </td>
+                  <td className="p-3 text-secondary">
+                    <div className="font-medium text-on-surface">{txn.cashier?.name || '-'}</div>
+                    <div className="text-[10px] text-outline">
+                      {txn.waiter?.name ? `Waiter: ${txn.waiter.name}` : 'Cashier order'}
+                    </div>
+                  </td>
+                  <td className="p-3 text-secondary">
+                    <div className="font-medium text-on-surface">{txn.payment?.method?.display_name || txn.payment?.method?.type || '-'}</div>
+                    <div className="text-[10px] text-outline">{txn.payment?.reference_code || 'Recorded payment'}</div>
+                  </td>
+                  <td className="p-3 font-semibold text-on-surface">{formatCurrency(txn.total)}</td>
+                  <td className="p-3 text-secondary text-xs">{txn.created_at ? new Date(txn.created_at).toLocaleString() : '-'}</td>
+                </tr>
+              ))}
+              {transactions.length === 0 && (
+                <tr>
+                  <td colSpan="7" className="p-8 text-center text-outline italic text-xs">No transactions found for this date.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

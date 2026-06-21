@@ -1,6 +1,6 @@
 const ROLE_HOME_PATHS = {
-  superadmin: '/admin/dashboard',
-  admin: '/admin/dashboard',
+  superadmin: '/admin/reports',
+  admin: '/admin/reports',
   inventory_manager: '/inventory/dashboard',
   cashier: '/cashier/tables',
   chef: '/kds',

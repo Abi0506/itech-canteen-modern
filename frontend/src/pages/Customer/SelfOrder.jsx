@@ -37,7 +37,7 @@ const SelfOrder = () => {
   const [cart, setCart] = useState({});
   const [confirmedQuantities, setConfirmedQuantities] = useState({});
   const [signup, setSignup] = useState({ name: '', phone_no: '', email: '' });
-  const [paymentMethod, setPaymentMethod] = useState('upi');
+  const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [allItemsDone, setAllItemsDone] = useState(false);
   const [statusChecking, setStatusChecking] = useState(false);
   const [sessionPin, setSessionPin] = useState(
@@ -437,7 +437,7 @@ const SelfOrder = () => {
         payment_method: paymentMethod,
       });
 
-      if (paymentMethod === 'upi' && response.data?.payment_provider === 'razorpay') {
+      if (paymentMethod === 'razorpay' && response.data?.payment_provider === 'razorpay') {
         const ready = await loadRazorpayScript();
         if (!ready) {
           throw new Error('Unable to load Razorpay checkout.');
@@ -1256,34 +1256,18 @@ const SelfOrder = () => {
               <div className="mt-6 grid gap-3 md:grid-cols-2">
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod('upi')}
-                  className={`rounded-2xl border p-4 text-left transition-colors ${
-                    paymentMethod === 'upi'
+                  onClick={() => setPaymentMethod('razorpay')}
+                  className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                    paymentMethod === 'razorpay'
                       ? 'border-primary bg-primary/5 text-primary'
                       : 'border-outline/10 bg-surface-container-lowest text-secondary'
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     <Smartphone size={18} />
-                    <span className="font-bold">UPI</span>
+                    <span className="font-bold">Pay Online</span>
                   </div>
-                  <p className="mt-2 text-xs">Use any UPI app to complete the payment.</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('card')}
-                  className={`rounded-2xl border p-4 text-left transition-colors ${
-                    paymentMethod === 'card'
-                      ? 'border-primary bg-primary/5 text-primary'
-                      : 'border-outline/10 bg-surface-container-lowest text-secondary'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <CreditCard size={18} />
-                    <span className="font-bold">Card</span>
-                  </div>
-                  <p className="mt-2 text-xs">Tap or swipe your card at the counter.</p>
+                  <p className="mt-2 text-xs">Securely pay via UPI, Credit/Debit Card, or Netbanking using Razorpay.</p>
                 </button>
               </div>
 
