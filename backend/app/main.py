@@ -1,10 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.db.bootstrap import bootstrap_database
 
 # Import new-system routes
-from app.routes import auth, admin, inventory, cashier, kds, payments, loyalty, reports, pos_session, self_order, selforder, websockets
+from app.routes import auth, admin, inventory, cashier, kds, payments, loyalty, pos_session, self_order, selforder, websockets, cfd
+
+try:
+    from app.routes import reports
+except ModuleNotFoundError:
+    reports = None
 
 app = FastAPI(
     title="Cafe Odoo API",
@@ -34,16 +38,23 @@ app.include_router(cashier.router)
 app.include_router(kds.router)
 app.include_router(payments.router)
 app.include_router(loyalty.router)
-app.include_router(reports.router)
 app.include_router(pos_session.router)
 app.include_router(self_order.router)
 app.include_router(selforder.router)
 app.include_router(websockets.router)
+app.include_router(cfd.router)
+if reports is not None:
+    app.include_router(reports.router)
+
+
 
 
 @app.on_event("startup")
-def startup_database():
-    bootstrap_database()
+async def startup_event():
+    import asyncio
+    from app.routes.websockets import manager
+    manager.loop = asyncio.get_running_loop()
+
 
 @app.get("/")
 def health_check():

@@ -199,7 +199,7 @@ def forgot_password(payload: dict, request: Request, db: Session = Depends(get_d
         # Build the reset link pointing to the frontend
         origin = str(request.base_url).rstrip("/")
         # Replace backend port with frontend port when in dev
-        frontend_origin = origin.replace(":8000", ":5173").replace(":8001", ":5173")
+        frontend_origin = origin.replace(":8000", ":5173").replace(":8000", ":5173")
         reset_link = f"{frontend_origin}/reset-password?token={token_value}"
 
         try:

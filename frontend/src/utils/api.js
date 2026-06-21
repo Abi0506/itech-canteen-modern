@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://127.0.0.1:8000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -39,3 +39,15 @@ api.interceptors.response.use(
 
 export default api;
 export { API_BASE_URL };
+
+export const getWebSocketUrl = (path) => {
+  const baseURL = api.defaults?.baseURL || API_BASE_URL;
+  let baseWsUrl;
+  if (baseURL.startsWith('http')) {
+    baseWsUrl = baseURL.replace(/^http/, 'ws');
+  } else {
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    baseWsUrl = `${protocol}://${window.location.host}${baseURL}`;
+  }
+  return `${baseWsUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};

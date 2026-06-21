@@ -34,6 +34,7 @@ from app.routes.websockets import manager
 from app.services.email import send_table_release_email, send_receipt_email
 from app.services.pricing import recalculate_order_totals
 from app.routes.loyalty import award_loyalty_points
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/cashier", tags=["cashier"])
 
@@ -264,18 +265,30 @@ def _append_items_to_order(db: Session, order: Order, items_in: List[OrderItemCr
                 )
             )
 
-        db.add(
-            OrderItem(
-                order_id=order.id,
-                product_id=item.product_id,
-                quantity=quantity,
-                unit_price=prod.price,
-                line_discount=Decimal("0.00"),
-                line_total=line_total,
-                kitchen_status="to_cook",
-                notes=item.notes,
+        existing_item = db.query(OrderItem).filter(
+            OrderItem.order_id == order.id,
+            OrderItem.product_id == item.product_id,
+            OrderItem.kitchen_status == "to_cook"
+        ).first()
+
+        if existing_item:
+            existing_item.quantity += quantity
+            existing_item.line_total += line_total
+            if item.notes:
+                existing_item.notes = f"{existing_item.notes} | {item.notes}" if existing_item.notes else item.notes
+        else:
+            db.add(
+                OrderItem(
+                    order_id=order.id,
+                    product_id=item.product_id,
+                    quantity=quantity,
+                    unit_price=prod.price,
+                    line_discount=Decimal("0.00"),
+                    line_total=line_total,
+                    kitchen_status="to_cook",
+                    notes=item.notes,
+                )
             )
-        )
 
     db.flush()
     db.refresh(order)
@@ -378,13 +391,6 @@ def _finalize_order_payment(
     reference_code: Optional[str],
     current_user: User,
 ) -> dict[str, Any]:
-    if not order.customer_id:
-        raise HTTPException(status_code=400, detail="Select or register a customer before payment.")
-
-    customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
-    if not customer or customer.is_guest:
-        raise HTTPException(status_code=400, detail="Select or register a customer before payment.")
-
     method = db.query(PaymentMethod).filter(PaymentMethod.id == payment_method_id).first()
     if not method or not method.is_enabled:
         raise HTTPException(status_code=400, detail="Invalid/disabled payment method")
@@ -497,12 +503,6 @@ def _create_razorpay_checkout_order(
     order: Order,
     current_user: User,
 ) -> dict[str, Any]:
-    if not order.customer_id:
-        raise HTTPException(status_code=400, detail="Select or register a customer before payment.")
-    customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
-    if not customer or customer.is_guest:
-        raise HTTPException(status_code=400, detail="Select or register a customer before payment.")
-
     method = _get_payment_method_by_type(db, "upi")
     client = _get_razorpay_client(db)
 
@@ -511,14 +511,20 @@ def _create_razorpay_checkout_order(
         db.commit()
 
     amount_paise = int((Decimal(str(order.total)) * Decimal("100")).to_integral_value())
-    razorpay_order = client.order.create(
-        {
-            "amount": amount_paise,
-            "currency": "INR",
-            "receipt": order.order_number,
-            "payment_capture": 1,
-        }
-    )
+    try:
+        razorpay_order = client.order.create(
+            {
+                "amount": amount_paise,
+                "currency": "INR",
+                "receipt": order.order_number,
+                "payment_capture": 1,
+            }
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Razorpay checkout could not be created. {str(exc)}",
+        )
 
     return {
         "success": True,
@@ -553,10 +559,13 @@ def list_tables(db: Session = Depends(get_db)):
             waiter = db.query(User).filter(User.id == t.current_waiter_id).first()
             if waiter:
                 waiter_name = waiter.name
+        floor_name = t.floor.name if t.floor else None
         active_orders = _get_active_table_orders(db, t.id)
         result.append({
             "id": t.id,
             "table_number": t.table_number,
+            "floor_id": t.floor_id,
+            "floor_name": floor_name,
             "seats": t.seats,
             "is_active": t.is_active,
             "current_status": t.current_status,
@@ -567,6 +576,22 @@ def list_tables(db: Session = Depends(get_db)):
             "active_order_total": float(sum((Decimal(str(order.total)) for order in active_orders), Decimal("0.00"))),
         })
     return result
+
+@router.get("/tables/{table_id}", dependencies=[cashier_dependency])
+def get_table(table_id: int, db: Session = Depends(get_db)):
+    t = db.query(TableMaster).filter(TableMaster.id == table_id, TableMaster.is_active == True).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Table not found")
+    return {
+        "id": t.id,
+        "table_number": t.table_number,
+        "floor_id": t.floor_id,
+        "floor_name": t.floor.name if t.floor else None,
+        "seats": t.seats,
+        "current_status": t.current_status,
+    }
+
+
 
 @router.post("/tables/{table_id}/release", dependencies=[cashier_dependency])
 def release_table(table_id: int, db: Session = Depends(get_db)):
@@ -788,16 +813,15 @@ async def create_cashier_order(order_in: OrderCreate, db: Session = Depends(get_
         table.current_status = "reserved"
         db.commit()
 
-    if order_in.table_id:
-        await manager.broadcast_all({
-            "event": "cart_updated",
-            "table_id": order_in.table_id,
-            "order_id": active_order.id,
-            "items": [{"name": i.product.name, "quantity": float(i.quantity), "price": float(i.unit_price)} for i in active_order.items],
-            "subtotal": float(active_order.subtotal),
-            "tax_total": float(active_order.tax_total),
-            "total": float(active_order.total)
-        })
+    await manager.broadcast_all({
+        "event": "cart_updated",
+        "table_id": order_in.table_id,
+        "order_id": active_order.id,
+        "items": [{"name": i.product.name, "quantity": float(i.quantity), "price": float(i.unit_price)} for i in active_order.items],
+        "subtotal": float(active_order.subtotal),
+        "tax_total": float(active_order.tax_total),
+        "total": float(active_order.total)
+    })
 
     return active_order
 
@@ -820,16 +844,15 @@ async def update_cashier_order_items(
     db.refresh(order)
     
     # Broadcast to CFD
-    if order.table_id:
-        await manager.broadcast_all({
-            "event": "cart_updated",
-            "table_id": order.table_id,
-            "order_id": order.id,
-            "items": [{"name": i.product.name, "quantity": float(i.quantity), "price": float(i.unit_price)} for i in order.items],
-            "subtotal": float(order.subtotal),
-            "tax_total": float(order.tax_total),
-            "total": float(order.total)
-        })
+    await manager.broadcast_all({
+        "event": "cart_updated",
+        "table_id": order.table_id,
+        "order_id": order.id,
+        "items": [{"name": i.product.name, "quantity": float(i.quantity), "price": float(i.unit_price)} for i in order.items],
+        "subtotal": float(order.subtotal),
+        "tax_total": float(order.tax_total),
+        "total": float(order.total)
+    })
         
     return order
 
@@ -850,12 +873,11 @@ async def send_order_to_kitchen(order_id: int, db: Session = Depends(get_db), cu
             table.current_waiter_id = current_user.id
     db.commit()
     db.refresh(order)
-    if order.table_id:
-        await manager.broadcast_all({
-            "event": "order_sent_to_kitchen",
-            "order_id": order.id,
-            "table_id": order.table_id,
-        })
+    await manager.broadcast_all({
+        "event": "order_sent_to_kitchen",
+        "order_id": order.id,
+        "table_id": order.table_id,
+    })
     return {
         "success": True,
         "order_id": order.id,
@@ -1188,60 +1210,33 @@ def get_customer_loyalty(customer_id: int, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/orders/{order_id}/send-email", dependencies=[cashier_dependency])
-def send_order_email(order_id: int, payload: Dict[str, Any] = None, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+class CFDTableRequest(BaseModel):
+    table_id: int | None
 
-    to_email = None
-    if payload:
-        to_email = payload.get("email")
 
-    if not to_email and order.customer_id:
-        customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
-        if customer:
-            to_email = customer.email
+class CFDSyncRequest(BaseModel):
+    table_id: int
+    cart: list
+    order_items: list
+    customer: dict | None
+    totals: dict
 
-    if not to_email:
-        raise HTTPException(status_code=400, detail="No email address available to send receipt")
 
-    items_list = []
-    for itm in order.items:
-        product = db.query(Product).filter(Product.id == itm.product_id).first()
-        if product:
-            items_list.append({
-                "name": product.name,
-                "quantity": itm.quantity,
-                "price": itm.unit_price
-            })
+@router.post("/cfd/set-table", dependencies=[cashier_dependency])
+async def set_cfd_table(payload: CFDTableRequest):
+    """Broadcasts to CFD clients to switch to a specific table or show the idle screen."""
+    await manager.broadcast_all({
+        "event": "cfd_table_changed",
+        "table_id": payload.table_id
+    })
+    return {"success": True, "table_id": payload.table_id}
 
-    table_name = None
-    if order.table_id:
-        table = db.query(TableMaster).filter(TableMaster.id == order.table_id).first()
-        if table:
-            table_name = table.table_number
 
-    customer_name = "Customer"
-    if order.customer_id:
-        customer = db.query(Customer).filter(Customer.id == order.customer_id).first()
-        if customer:
-            customer_name = customer.name
-
-    try:
-        send_receipt_email(
-            to_email=to_email,
-            customer_name=customer_name,
-            order_number=order.order_number,
-            table_name=table_name,
-            items=items_list,
-            subtotal=order.total,
-            tax=0,
-            discount=0,
-            grand_total=order.total,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
-
-    return {"success": True, "message": f"Receipt email sent to {to_email}"}
-
+@router.post("/cfd/sync", dependencies=[cashier_dependency])
+async def sync_cfd_state(payload: CFDSyncRequest):
+    """Proxies live UI state from Cashier to CFD Mirror."""
+    await manager.broadcast_all({
+        "event": "cfd_sync",
+        "data": payload.dict()
+    })
+    return {"success": True}

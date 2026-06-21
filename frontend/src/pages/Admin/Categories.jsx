@@ -10,7 +10,7 @@ const Categories = () => {
 
   const fetchCats = async () => {
     try {
-      const res = await api.get('/admin/categories');
+      const res = await api.get('/inventory/categories');
       setCategories(res.data);
     } catch (e) {
       console.error(e);
@@ -27,7 +27,7 @@ const Categories = () => {
     e.preventDefault();
     setError('');
     try {
-      await api.post('/admin/categories', { name: newCatName });
+      await api.post('/inventory/categories', { name: newCatName });
       setNewCatName('');
       fetchCats();
     } catch (err) {
@@ -37,7 +37,7 @@ const Categories = () => {
 
   const handleToggle = async (catId) => {
     try {
-      const res = await api.post(`/admin/categories/${catId}/toggle`);
+      const res = await api.patch(`/inventory/categories/${catId}/status`);
       setCategories(categories.map(c => c.id === catId ? { ...c, is_active: res.data.is_active } : c));
     } catch (err) {
       console.error(err);

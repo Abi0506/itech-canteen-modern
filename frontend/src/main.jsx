@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
+import ThemeToggle from './components/ThemeToggle';
 
 // Auth Pages
 import Login from './pages/Login';
@@ -26,6 +27,7 @@ import CashierOrderScreen from './pages/Cashier/OrderScreen';
 import CashierOrdersList from './pages/Cashier/OrdersList';
 import KitchenDisplay from './pages/Kitchen/KitchenDisplay';
 import SelfOrder from './pages/Customer/SelfOrder';
+import CustomerFacingDisplay from './pages/Customer/CustomerFacingDisplay';
 
 // Inventory Pages
 import InventoryDashboard from './pages/Inventory/Dashboard';
@@ -122,6 +124,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/self-order/:tableId" element={<SelfOrder />} />
+          <Route path="/mirror" element={<CustomerFacingDisplay />} />
 
           {/* Protected routes */}
           <Route element={<RequireAuth />}>
@@ -148,8 +151,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 <Route path="/cashier/orders" element={<CashierOrdersList />} />
               </Route>
 
-              {/* ── Inventory Manager routes ─── */}
-              <Route element={<RequireRole allowedRoles={['inventory_manager']} />}>
+              {/* ── Inventory Management routes ─── */}
+              <Route element={<RequireRole allowedRoles={['inventory_manager', 'superadmin']} />}>
                 <Route path="/inventory/dashboard" element={<InventoryDashboard />} />
                 <Route path="/inventory/items" element={<InventoryItems />} />
                 <Route path="/inventory/categories" element={<InventoryCategories />} />
@@ -167,6 +170,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <ThemeToggle />
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

@@ -41,7 +41,7 @@ const Navbar = () => {
         { to: '/admin/coupons', label: 'Coupons & Promos', icon: <Percent size={18} /> },
         { to: '/admin/tables', label: 'Table Monitor', icon: <Layers size={18} /> },
         { to: '/admin/floors', label: 'Floors & Tables', icon: <MapPin size={18} /> },
-        { to: '/admin/settings', label: 'Venue Settings', icon: <Sliders size={18} /> },
+        // { to: '/admin/settings', label: 'Venue Settings', icon: <Sliders size={18} /> },
         { to: '/admin/reports', label: 'Reports & Charts', icon: <BarChart2 size={18} /> },
       ];
     }
@@ -54,7 +54,7 @@ const Navbar = () => {
     <>
       <nav className="bg-surface border-b border-outline/10 sticky top-0 z-40 px-4 py-3 md:px-8">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          
+
           {/* Branding & Mobile Menu Toggle */}
           <div className="flex items-center gap-3">
             {navLinks.length > 0 && (
@@ -66,7 +66,7 @@ const Navbar = () => {
                 {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
               </button>
             )}
-            
+
             <Link to="/" className="flex items-center gap-2">
               <span className="material-symbols-outlined text-primary text-3xl font-bold">restaurant_menu</span>
               <span className="font-headline font-bold text-lg text-primary tracking-tight uppercase">
@@ -96,16 +96,15 @@ const Navbar = () => {
 
       {/* Mobile Drawer Overlay */}
       {mobileMenuOpen && navLinks.length > 0 && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-30 md:hidden transition-opacity"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
       {/* Mobile Navigation Drawer */}
-      <div className={`fixed top-[57px] left-0 w-72 bg-surface h-[calc(100vh-57px)] border-r border-outline/10 z-40 transform transition-transform duration-300 ease-in-out md:hidden ${
-        mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      <div className={`fixed top-[57px] left-0 w-72 bg-surface h-[calc(100vh-57px)] border-r border-outline/10 z-40 transform transition-transform duration-300 ease-in-out md:hidden ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}>
         <div className="flex flex-col h-full py-6 px-4 justify-between">
           <div className="space-y-6">
             <div className="space-y-1">
@@ -115,9 +114,8 @@ const Navbar = () => {
                   key={link.to}
                   to={link.to}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                    isActive(link.to) ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
-                  }`}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors ${isActive(link.to) ? 'bg-primary/5 text-primary' : 'text-secondary hover:bg-surface-container-high'
+                    }`}
                 >
                   {link.icon}
                   {link.label}

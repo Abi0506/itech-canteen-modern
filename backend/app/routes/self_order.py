@@ -812,19 +812,16 @@ async def verify_razorpay_payment(order_id: int, payload: dict, db: Session = De
     if not all([razorpay_order_id, razorpay_payment_id, razorpay_signature]):
         raise HTTPException(status_code=400, detail="Missing Razorpay verification details")
 
-    venue_setting = db.query(VenueSetting).first()
-    secret = venue_setting.razorpay_key_secret if venue_setting and venue_setting.razorpay_key_secret else settings.RAZORPAY_KEY_SECRET
-    if not secret:
-        raise HTTPException(status_code=503, detail="Razorpay is not configured")
-
-    msg = f"{razorpay_order_id}|{razorpay_payment_id}"
-    generated_signature = hmac.new(
-        secret.encode(),
-        msg.encode(),
-        hashlib.sha256
-    ).hexdigest()
-
-    if generated_signature != razorpay_signature:
+    client = _get_razorpay_client(db)
+    try:
+        client.utility.verify_payment_signature(
+            {
+                "razorpay_order_id": razorpay_order_id,
+                "razorpay_payment_id": razorpay_payment_id,
+                "razorpay_signature": razorpay_signature,
+            }
+        )
+    except Exception:
         raise HTTPException(status_code=400, detail="Invalid Razorpay signature")
 
     method = db.query(PaymentMethod).filter(PaymentMethod.type == "upi", PaymentMethod.is_enabled == True).first()

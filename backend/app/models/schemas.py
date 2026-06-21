@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
 from datetime import datetime, date, time
@@ -46,12 +46,12 @@ class UserResponse(BaseModel):
 class CustomerSignup(BaseModel):
     name: str
     mobile_number: str
-    email: EmailStr
+    email: Optional[EmailStr] = None
 
 class CustomerResolve(BaseModel):
-    name: Optional[str] = None
+    name: str
     mobile_number: str
-    email: EmailStr
+    email: Optional[EmailStr] = None
 
 class CustomerResponse(BaseModel):
     id: int
@@ -168,7 +168,6 @@ class OrderResponse(BaseModel):
     waiter_id: Optional[int] = None
     status: str
     coupon_id: Optional[int] = None
-    coupon_code: Optional[str] = None
     subtotal: Decimal
     tax_total: Decimal
     discount_total: Decimal
@@ -177,13 +176,9 @@ class OrderResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     items: List[OrderItemResponse] = []
-    applied_promotions: List[str] = []
 
     class Config:
         from_attributes = True
-
-class ApplyCouponRequest(BaseModel):
-    code: str
 
 # Payment Schemas
 class PaymentCreate(BaseModel):
@@ -229,7 +224,9 @@ class CouponCreate(BaseModel):
     max_uses: Optional[int] = None
     valid_from: Optional[date] = None
     valid_until: Optional[date] = None
-    target_customer_ids: List[int] = []
+
+class ApplyCouponRequest(BaseModel):
+    code: str
 
 class CouponResponse(BaseModel):
     id: int
@@ -241,7 +238,6 @@ class CouponResponse(BaseModel):
     is_active: bool
     valid_from: Optional[date] = None
     valid_until: Optional[date] = None
-    target_customer_ids: List[int] = []
 
     class Config:
         from_attributes = True
@@ -287,8 +283,6 @@ class VenueSettingResponse(BaseModel):
     tax_label: str
     receipt_footer_text: Optional[str] = None
     kds_auto_advance: bool
-    razorpay_key_id: Optional[str] = None
-    razorpay_key_secret: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -305,8 +299,6 @@ class VenueSettingUpdate(BaseModel):
     tax_label: Optional[str] = None
     receipt_footer_text: Optional[str] = None
     kds_auto_advance: Optional[bool] = None
-    razorpay_key_id: Optional[str] = None
-    razorpay_key_secret: Optional[str] = None
 
 # Floor & Table Schemas
 class FloorCreate(BaseModel):
@@ -320,21 +312,9 @@ class TableCreate(BaseModel):
     table_number: str
     seats: int = 4
 
-    @validator('table_number')
-    def validate_table_number(cls, v):
-        if not v.isdigit():
-            raise ValueError('Table number must contain only numeric digits')
-        return v
-
 class TableUpdate(BaseModel):
     table_number: Optional[str] = None
     seats: Optional[int] = None
-
-    @validator('table_number')
-    def validate_table_number(cls, v):
-        if v is not None and not v.isdigit():
-            raise ValueError('Table number must contain only numeric digits')
-        return v
 
 class TableResponse(BaseModel):
     id: int

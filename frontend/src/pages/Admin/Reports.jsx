@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import api from '../../utils/api';
+import api, { getWebSocketUrl } from '../../utils/api';
 import { TrendingUp, ShoppingBag, DollarSign, Users, Calendar, BarChart2, Download } from 'lucide-react';
 
 const formatCurrency = (value) => `Rs.${Number(value || 0).toFixed(2)}`;
@@ -319,7 +319,7 @@ const Reports = () => {
 
     loadInitial();
 
-    const socket = new WebSocket('ws://localhost:8000/ws/admin');
+    const socket = new WebSocket(getWebSocketUrl('/ws/admin'));
     socket.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);

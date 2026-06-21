@@ -11,6 +11,7 @@ const OrderScreen = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [currentOrder, setCurrentOrder] = useState(null);
+  const [tableInfo, setTableInfo] = useState(null);
   const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCat, setActiveCat] = useState('all');
@@ -99,14 +100,18 @@ const OrderScreen = () => {
   const loadData = async () => {
     setError('');
     try {
-      const [productsRes, categoriesRes, orderRes] = await Promise.allSettled([
+      const [productsRes, categoriesRes, orderRes, tableRes] = await Promise.allSettled([
         api.get('/inventory/products'),
         api.get('/inventory/categories'),
         api.get(`/cashier/tables/${tableId}/current-order`),
+        api.get(`/cashier/tables/${tableId}`),
       ]);
 
       setProducts(productsRes.status === 'fulfilled' ? (productsRes.value.data || []) : []);
       setCategories(categoriesRes.status === 'fulfilled' ? (categoriesRes.value.data || []) : []);
+      if (tableRes.status === 'fulfilled') {
+        setTableInfo(tableRes.value.data || null);
+      }
 
       if (orderRes.status === 'rejected') {
         const orderErr = orderRes.reason;
@@ -145,6 +150,16 @@ const OrderScreen = () => {
   useEffect(() => {
     resetForNextCustomer();
     loadData();
+
+    // Broadcast to CFD mirror that this table is now active
+    if (tableId) {
+      api.post('/cashier/cfd/set-table', { table_id: Number(tableId) }).catch(console.error);
+    }
+
+    return () => {
+      // Clear CFD mirror on unmount
+      api.post('/cashier/cfd/set-table', { table_id: null }).catch(console.error);
+    };
   }, [tableId]);
 
   const handleCustomerSearch = async (text) => {
@@ -360,6 +375,24 @@ const OrderScreen = () => {
   const paymentHistory = billSummary?.payments || [];
   const selectedCustomer = currentOrder?.customer && !currentOrder.customer.is_guest ? currentOrder.customer : null;
 
+  // Sync live state to CFD
+  useEffect(() => {
+    if (tableId) {
+      api.post('/cashier/cfd/sync', {
+        table_id: Number(tableId),
+        cart: cart,
+        order_items: orderLineItems,
+        customer: selectedCustomer || null,
+        totals: {
+          subtotal: cumulativeSubtotal,
+          tax: cumulativeTax,
+          total: cumulativeTotal,
+          balance_due: balanceDue
+        }
+      }).catch(console.error);
+    }
+  }, [cart, orderLineItems, cumulativeSubtotal, cumulativeTax, cumulativeTotal, balanceDue, selectedCustomer, tableId]);
+
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
       const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -444,11 +477,6 @@ const OrderScreen = () => {
   };
 
   const handlePayBill = async () => {
-    if (!selectedCustomer) {
-      setError('Select or register a customer with phone number before payment.');
-      setShowCustomerModal(true);
-      return;
-    }
     if (balanceDue <= 0) {
       setError('This bill has no pending balance.');
       return;
@@ -483,7 +511,6 @@ const OrderScreen = () => {
       const res = await api.post(`/cashier/orders/${order.id}/pay-and-send`, paymentMethodPayload);
 
       if (paymentMethodId === 3 && res.data?.payment_provider === 'razorpay') {
-        setCart([]);
         const ready = await loadRazorpayScript();
         if (!ready) {
           throw new Error('Unable to load Razorpay checkout.');
@@ -601,7 +628,11 @@ const OrderScreen = () => {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="font-headline font-bold text-xl text-on-surface">Table {tableId} Bill</h1>
+            <h1 className="font-headline font-bold text-xl text-on-surface">
+              {tableInfo
+                ? `${tableInfo.floor_name ? tableInfo.floor_name + ' · ' : ''}Table ${tableInfo.table_number} Bill`
+                : `Table Bill`}
+            </h1>
             <p className="text-secondary text-xs">Add items here, then send them to the chef.</p>
           </div>
         </div>
@@ -906,21 +937,33 @@ const OrderScreen = () => {
             </div>
 
             {paymentMethodId === 1 && (
-              <div>
+              <div className="space-y-1.5">
                 <label className="block text-[10px] font-semibold text-secondary uppercase mb-1">Cash Received (Rs.)</label>
                 <input
                   type="number"
                   placeholder="e.g. 500"
-                  className="w-full p-2.5 bg-surface-container-lowest border border-outline/10 rounded-lg text-xs"
+                  className="w-full p-2.5 bg-surface-container-lowest border border-outline/10 rounded-lg text-xs font-bold font-mono"
                   value={receivedCash}
                   onChange={(e) => setReceivedCash(e.target.value)}
                 />
+                {receivedCash && Number(receivedCash) >= balanceDue && balanceDue > 0 && (
+                  <div className="flex justify-between items-center bg-emerald-50 text-emerald-800 p-2 rounded-lg border border-emerald-200 mt-2">
+                    <span className="font-bold uppercase tracking-wide text-[10px]">Change Due</span>
+                    <span className="font-black text-sm">Rs.{(Number(receivedCash) - balanceDue).toFixed(2)}</span>
+                  </div>
+                )}
+                {receivedCash && Number(receivedCash) < balanceDue && balanceDue > 0 && (
+                  <div className="flex justify-between items-center bg-error/10 text-error p-2 rounded-lg border border-error/20 mt-2">
+                    <span className="font-bold uppercase tracking-wide text-[10px]">Short by</span>
+                    <span className="font-black text-sm">Rs.{(balanceDue - Number(receivedCash)).toFixed(2)}</span>
+                  </div>
+                )}
               </div>
             )}
 
             <button
               onClick={handlePayBill}
-              disabled={busy || upiBusy || cumulativeItems.length === 0 || !selectedCustomer}
+              disabled={busy || upiBusy || cumulativeItems.length === 0}
               className="w-full py-3 bg-primary text-on-primary font-semibold rounded-xl text-xs hover:bg-primary/95 transition-all shadow disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
               <CreditCard size={14} />

@@ -15,7 +15,7 @@ import {
   CreditCard,
   Smartphone,
 } from 'lucide-react';
-import api from '../../utils/api';
+import api, { getWebSocketUrl } from '../../utils/api';
 
 const formatMoney = (value) => `Rs.${Number(value || 0).toFixed(2)}`;
 
@@ -217,8 +217,7 @@ const SelfOrder = () => {
   useEffect(() => {
     if (!order?.id) return undefined;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const socketUrl = `${protocol}://${window.location.hostname}:8000/ws/customer_display`;
+    const socketUrl = getWebSocketUrl('/ws/customer_display');
     const socket = new WebSocket(socketUrl);
 
     socket.onmessage = (event) => {
@@ -421,14 +420,18 @@ const SelfOrder = () => {
     document.body.appendChild(script);
   });
 
+  useEffect(() => {
+    if (screen === 'payment' && paymentMethod === 'razorpay') {
+      loadRazorpayScript();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, paymentMethod]);
+
   const payForOrder = async () => {
     if (!order?.id) return;
     if (!canProceedToPayment) {
-      const ready = await checkKitchenStatus();
-      if (!ready) {
-        setError('Please wait until the chef marks every item as done before payment.');
-        return;
-      }
+      setError('Please wait until the chef marks every item as done before payment.');
+      return;
     }
     setBusy(true);
     setError('');

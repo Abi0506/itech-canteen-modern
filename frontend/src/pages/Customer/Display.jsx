@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import api from '../../utils/api';
+import api, { getWebSocketUrl } from '../../utils/api';
 import { Clock3, ReceiptText, Sparkles } from 'lucide-react';
 
 const CustomerDisplay = () => {
@@ -19,7 +19,7 @@ const CustomerDisplay = () => {
 
   useEffect(() => {
     loadDisplay();
-    const socket = new WebSocket('ws://localhost:8000/ws/customer_display');
+    const socket = new WebSocket(getWebSocketUrl('/ws/customer_display'));
     socket.onmessage = () => loadDisplay();
     return () => socket.close();
   }, [tableId]);

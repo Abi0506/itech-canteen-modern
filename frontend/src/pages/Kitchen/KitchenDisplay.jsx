@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import api from '../../utils/api';
+import api, { getWebSocketUrl } from '../../utils/api';
 import { CheckCircle2, Clock3, PlayCircle, RefreshCw, Table2 } from 'lucide-react';
 
 const KitchenDisplay = () => {
@@ -20,10 +20,29 @@ const KitchenDisplay = () => {
 
   useEffect(() => {
     loadOrders();
-    const socket = new WebSocket(`ws://localhost:8000/ws/kds`);
-    socket.onmessage = () => loadOrders();
-    socket.onclose = () => {};
-    return () => socket.close();
+    let socket;
+    let reconnectTimeout;
+    
+    const wsUrl = getWebSocketUrl('/ws/kds');
+
+    const connectWS = () => {
+      socket = new WebSocket(wsUrl);
+      socket.onmessage = () => loadOrders();
+      socket.onclose = () => {
+        // Auto-reconnect after 3 seconds
+        reconnectTimeout = setTimeout(connectWS, 3000);
+      };
+    };
+
+    connectWS();
+
+    return () => {
+      clearTimeout(reconnectTimeout);
+      if (socket) {
+        socket.onclose = () => {}; // prevent reconnect on intentional unmount
+        socket.close();
+      }
+    };
   }, []);
 
   const groupedOrders = useMemo(() => {
